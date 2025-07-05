@@ -49,7 +49,7 @@ conda install -y open3d-admin::open3d=0.10.0.0
 
 ## Data
 
-The 3D scene data and our generation results can be found [here](https://1drv.ms/u/s!Alg6Vpe53dEDgrcBClkV5NvqydM9Xg?e=nsyPeU).
+The 3D scene data and our generation results can be found [here](https://1drv.ms/u/c/03d1ddb997563a58/QVg6Vpe53dEggAOBmwAAAAAAClkV5NvqydM9Xg).
 Extract the content of the zipped file to the root directory of the code.
 
 ## Running
