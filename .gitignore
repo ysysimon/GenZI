@@ -133,3 +133,7 @@ log/
 wandb/
 .vscode/
 .fuse_hidden*
+
+# houdini
+gen_sdf/backup
+gen_sdf/temp
