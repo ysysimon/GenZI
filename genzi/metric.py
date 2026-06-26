@@ -43,7 +43,7 @@ class PhysicalMetric(object):
             sdf_json_path = sdf_path
             sdf_npy_path = sdf_path[:-5] + "_sdf.npy"
         elif sdf_path.endswith("_sdf.npy"):
-            sdf_json_path = sdf_json_path[:-8] + ".json"
+            sdf_json_path = sdf_path[:-8] + ".json"
             sdf_npy_path = sdf_path
         else:
             raise RuntimeError(f"[!] {sdf_path} is wrong!")
