@@ -137,3 +137,4 @@ wandb/
 # houdini
 gen_sdf/backup
 gen_sdf/temp
+gen_sdf/export
