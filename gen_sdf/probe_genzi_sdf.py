@@ -18,14 +18,20 @@ This script intentionally matches the current GenZI dense SDF query path:
 
 Houdini VEX cross-check:
 
-    // Detail wrangle or point wrangle.
-    // Input 1 should be the same dense SDF volume used for export.
+    // Detail wrangle.
+    // Input 0 should be the same dense SDF volume used for export.
     vector sample_pos = chv("sample_pos");
-    float sdf = volumesample(1, "sdf", sample_pos);
-    printf("sample_pos=(%g, %g, %g), sdf=%g\\n", sample_pos.x, sample_pos.y, sample_pos.z, sdf);
+    vector sdf_min = set(-0.1995677948, 0.0058293343, -5.4890766144);
+    vector sdf_max = set(6.4868893623, 2.9787623882, 0.0821893215);
+    vector genzi_pos = clamp(sample_pos, sdf_min, sdf_max);
+    float sdf = volumesample(0, "sdf", genzi_pos);
+    printf("sample_pos=(%g, %g, %g), genzi_pos=(%g, %g, %g), sdf=%g\\n",
+        sample_pos.x, sample_pos.y, sample_pos.z,
+        genzi_pos.x, genzi_pos.y, genzi_pos.z, sdf);
 
 Point wrangle version for checking the current point position:
-
+    // Point wrangle.
+    // Input 0 should be the query points, Input 1 should be the same dense SDF volume used for export.
     f@sdf = volumesample(1, "sdf", @P);
 
 Make sure Houdini samples the same dense volume and the same coordinate space
@@ -142,8 +148,51 @@ def point_in_bounds(point: list[float], sdf_min: Any, sdf_max: Any) -> bool:
     return bool(np.all(p >= sdf_min) and np.all(p <= sdf_max))
 
 
+def clamp_point(point: list[float], sdf_min: Any, sdf_max: Any) -> Any:
+    np = require_numpy()
+    p = np.asarray(point, dtype=np.float32)
+    return np.minimum(np.maximum(p, sdf_min), sdf_max)
+
+
 def format_float(value: float) -> str:
     return "{:.9g}".format(float(value))
+
+
+def print_out_of_bounds_warnings(sdf_data: dict[str, Any], points: list[list[float]]) -> None:
+    warnings = []
+    spacing = (sdf_data["max"] - sdf_data["min"]) / float(sdf_data["dim"] - 1)
+
+    for idx, point in enumerate(points):
+        if point_in_bounds(point, sdf_data["min"], sdf_data["max"]):
+            continue
+
+        np = require_numpy()
+        p = np.asarray(point, dtype=np.float32)
+        clamped = clamp_point(point, sdf_data["min"], sdf_data["max"])
+        outside = p - clamped
+        outside_voxels = outside / spacing
+
+        warnings.append(
+            "point {} is outside the GenZI SDF bbox; GenZI grid_sample uses border clamp. "
+            "Houdini volumesample at the raw point can differ. "
+            "Use clamped point [{}, {}, {}] to match this probe. Outside-by-voxels: [{}, {}, {}].".format(
+                idx,
+                format_float(clamped[0]),
+                format_float(clamped[1]),
+                format_float(clamped[2]),
+                format_float(outside_voxels[0]),
+                format_float(outside_voxels[1]),
+                format_float(outside_voxels[2]),
+            )
+        )
+
+    if not warnings:
+        return
+
+    print("")
+    print("warnings:")
+    for warning in warnings:
+        print("  - {}".format(warning))
 
 
 def print_table(sdf_data: dict[str, Any], points: list[list[float]], values: Any, device: str) -> None:
@@ -169,6 +218,7 @@ def print_table(sdf_data: dict[str, Any], points: list[list[float]], values: Any
                 str(in_bbox).lower(),
             )
         )
+    print_out_of_bounds_warnings(sdf_data, points)
 
 
 def print_json(sdf_data: dict[str, Any], points: list[list[float]], values: Any, device: str) -> None:
