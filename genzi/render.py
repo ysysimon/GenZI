@@ -2,6 +2,12 @@ import os.path as osp
 import sys
 import math
 import numpy as np
+try:
+    from pxr import Gf as _genzi_usd_gf  # noqa: F401
+    from pxr import Usd as _genzi_usd  # noqa: F401
+    from pxr import UsdGeom as _genzi_usd_geom  # noqa: F401
+except ImportError:
+    pass
 import trimesh
 import torch
 import pyrender

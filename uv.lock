@@ -497,6 +497,7 @@ dependencies = [
     { name = "tqdm" },
     { name = "transformers" },
     { name = "trimesh", extra = ["easy"] },
+    { name = "usd-core" },
     { name = "wandb" },
 ]
 
@@ -542,6 +543,7 @@ requires-dist = [
     { name = "tqdm", specifier = "==4.65.0" },
     { name = "transformers", specifier = "==4.31.0" },
     { name = "trimesh", extras = ["easy"] },
+    { name = "usd-core", specifier = "==26.3" },
     { name = "wandb", specifier = "==0.15.8" },
 ]
 
@@ -1881,6 +1883,16 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ed/63/22ba4ebfe7430b76388e7cd448d5478814d3032121827c12a2cc287e2260/urllib3-2.2.3.tar.gz", hash = "sha256:e7d814a81dad81e6caf2ec9fdedb284ecc9c73076b62654547cc64ccdcae26e9", size = 300677, upload-time = "2024-09-12T10:52:18.401Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/d9/5f4c13cecde62396b0d3fe530a50ccea91e7dfc1ccf0e09c228841bb5ba8/urllib3-2.2.3-py3-none-any.whl", hash = "sha256:ca899ca043dcb1bafa3e262d73aa25c465bfb49e0bd9dd5d59f1d0acba2f8fac", size = 126338, upload-time = "2024-09-12T10:52:16.589Z" },
+]
+
+[[package]]
+name = "usd-core"
+version = "26.3"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/e2/2694441c22ba3a50630f1fb6f9b2a1afaa1045d932ee455b29b68000744e/usd_core-26.3-cp38-none-macosx_10_15_universal2.whl", hash = "sha256:c4446a1cf07daf9b9c507f736cbb06ee612ee0804fbf8677e933590c3486abae", size = 39353683, upload-time = "2026-02-24T23:06:09.475Z" },
+    { url = "https://files.pythonhosted.org/packages/86/ad/2994f303d12596223a4e83e5574078987cf3ec0f1194f9224166c8427609/usd_core-26.3-cp38-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:89f8064c63378bf5581ce9023d532f4c238688a64d6ed14f74678cbfbfd2e3f3", size = 28546676, upload-time = "2026-02-24T23:06:12.736Z" },
+    { url = "https://files.pythonhosted.org/packages/43/7a/aff9717f4ae1ccf018d7e5816ac7c0631784df95b99ab09d828bc46b342b/usd_core-26.3-cp38-none-win_amd64.whl", hash = "sha256:11c266190588909962287288003d483b3ac738f38d865fbaa4117faad776ac52", size = 13359534, upload-time = "2026-02-24T23:06:15.976Z" },
 ]
 
 [[package]]

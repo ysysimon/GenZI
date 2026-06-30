@@ -39,6 +39,7 @@ dependencies = [
     "tqdm==4.65.0",
     "transformers==4.31.0",
     "trimesh[easy]",
+    "usd-core==26.3",
     "wandb==0.15.8",
 ]
 

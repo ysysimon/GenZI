@@ -26,6 +26,7 @@ tensorboardX==2.6
 torchgeometry==0.1.2 
 tqdm==4.65.0 
 trimesh[easy]
+usd-core==26.3
 usort 
 wandb==0.15.8 
 protobuf==3.19.6

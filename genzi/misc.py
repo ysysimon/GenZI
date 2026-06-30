@@ -6,6 +6,12 @@ import random
 import time
 import numpy as np
 import cv2
+try:
+    from pxr import Gf as _genzi_usd_gf  # noqa: F401
+    from pxr import Usd as _genzi_usd  # noqa: F401
+    from pxr import UsdGeom as _genzi_usd_geom  # noqa: F401
+except ImportError:
+    pass
 import trimesh
 import open3d as o3d
 import torch
@@ -351,6 +357,10 @@ def to_o3d_pcd(V, VN=None, VC=None):
 
 
 def load_trimesh(filepath, force=None):
+    if Path(str(filepath)).suffix.lower() in {".usd", ".usda", ".usdc"}:
+        from genzi.usd_io import load_usd_mesh
+
+        return load_usd_mesh(str(filepath))
     return trimesh.load(filepath, force=force, process=False, validate=False)
 
 
