@@ -8,6 +8,8 @@ upstream documentation.
 from __future__ import annotations
 
 import argparse
+import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -53,6 +55,13 @@ def run(cmd: list[str], cwd: Path | None = None) -> None:
     subprocess.run(cmd, cwd=str(cwd) if cwd is not None else None, check=True)
 
 
+def uv_command() -> str:
+    uv = shutil.which("uv")
+    if uv is None:
+        raise RuntimeError("未找到 uv。请先安装 uv，或确保 uv 在 PATH 中。")
+    return uv
+
+
 def ensure_checkout(target: Path, rev: str) -> None:
     target = target.resolve()
     if target.exists():
@@ -70,7 +79,27 @@ def ensure_checkout(target: Path, rev: str) -> None:
 
 def install_alphapose(target: Path) -> None:
     print("[*] 安装前会固定 AlphaPose 常见兼容构建依赖。")
-    run([sys.executable, "-m", "pip", "install", "Cython==0.29.35", "setuptools==65.7.0"])
+    build_packages = [
+        "Cython==0.29.35",
+        "pytest-runner",
+        "setuptools==65.7.0",
+        "wheel",
+    ]
+    run([uv_command(), "pip", "install", "--python", sys.executable, *build_packages])
+
+    run(
+        [
+            uv_command(),
+            "pip",
+            "install",
+            "--python",
+            sys.executable,
+            "--no-deps",
+            "cython-bbox==0.1.5",
+        ]
+    )
+    if platform.system() == "Windows":
+        run([uv_command(), "pip", "install", "--python", sys.executable, "pycocotools==2.0.7"])
     run([sys.executable, "setup.py", "build", "develop"], cwd=target)
 
 

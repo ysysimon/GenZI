@@ -335,6 +335,16 @@ def main() -> int:
             "请按 AlphaPose 官方仓库安装，并准备其 checkpoint 和 detector 权重。",
         ),
         check_import(
+            "AlphaPose cython_bbox",
+            "cython_bbox",
+            "请运行 `uv run python tools/install_alphapose.py --target external/AlphaPose`。",
+        ),
+        check_import(
+            "AlphaPose pycocotools",
+            "pycocotools.mask",
+            "请运行 `uv run python tools/install_alphapose.py --target external/AlphaPose`。",
+        ),
+        check_import(
             "mesh_intersection",
             "mesh_intersection.bvh_search_tree",
             "请安装 torch-mesh-isect。",

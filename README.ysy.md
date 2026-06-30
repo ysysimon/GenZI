@@ -82,9 +82,12 @@ uv sync --group generation
 smplx==0.1.28
 human_body_prior @ 4c246d8a83ce16d3cff9c79dcf04d81fa440a6bc
 open3d==0.10.0.0  # 仅 Windows/Linux x86_64 类平台
+pywinpty==2.0.13  # 仅 Windows，用于避开 2.0.14 sdist 元数据问题
 ```
 
 `human_body_prior` 固定到旧 commit，是因为当前上游默认说明已经面向更新 Python 版本，而 GenZI 当前环境固定为 Python 3.8。
+
+Windows 上 `open3d==0.10.0.0` 会经由 `notebook -> jupyter-server -> terminado` 间接拉入 `pywinpty`。`pywinpty==2.0.14` 在 Python 3.8 的锁定结果里只有 sdist，且其 `pyproject.toml` 缺少 `project.version`，`uv` 会拒绝构建；因此本项目在 Windows 下显式固定 `pywinpty==2.0.13`，该版本有 `cp38` 的 `win_amd64` wheel。
 
 如果 `open3d==0.10.0.0` 在当前平台没有可用 wheel，使用 conda fallback：
 
@@ -100,13 +103,15 @@ NVDiffRast：
 uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation
 ```
 
+Windows 上需要 CUDA Toolkit 11.7、MSVC `cl.exe` 和若干构建环境变量；详见 [NVDiffRast Windows 构建说明](docs/nvdiffrast-windows-build.md)。
+
 AlphaPose：
 
 ```bash
 uv run python tools/install_alphapose.py --target external/AlphaPose
 ```
 
-AlphaPose 上游通常没有稳定 release；辅助脚本默认 checkout `master`，需要复现实验时可以传 `--rev <commit>` 固定版本。脚本不会下载 pose checkpoint 或 detector 权重，这些文件仍需按 AlphaPose 文档手动准备。
+AlphaPose 上游通常没有稳定 release；辅助脚本默认 checkout `master`，需要复现实验时可以传 `--rev <commit>` 固定版本。脚本会通过 `uv pip` 安装旧式 `setup.py` 需要的构建辅助包，并在 Windows 上预装 `pycocotools==2.0.7` 和 `cython-bbox==0.1.5`，避免 AlphaPose 内部调用 `python -m pip`。脚本不会下载 pose checkpoint 或 detector 权重，这些文件仍需按 AlphaPose 文档手动准备。
 
 torch-mesh-isect：
 
@@ -128,10 +133,12 @@ PyTorch3D：
 当前 GenZI 已使用本地 torch rotation helper 替代 PyTorch3D 的两个 rotation 函数，不再需要单独安装 PyTorch3D。
 ```
 
-如果 AlphaPose 编译报错，可优先尝试原 README 建议的版本：
+如果手动安装 AlphaPose，构建辅助包至少需要包含：
 
 ```bash
-uv pip install Cython==0.29.35 setuptools==65.7.0
+uv pip install Cython==0.29.35 pytest-runner setuptools==65.7.0 wheel
+uv pip install --no-deps cython-bbox==0.1.5
+uv pip install pycocotools==2.0.7  # Windows
 ```
 
 推荐用 doctor 脚本做完整检查，不再用单行 import 命令：

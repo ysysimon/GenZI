@@ -711,6 +711,7 @@ dev = [
 generation = [
     { name = "human-body-prior" },
     { name = "open3d", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')" },
+    { name = "pywinpty", marker = "sys_platform == 'win32'" },
     { name = "smplx" },
 ]
 
@@ -762,6 +763,7 @@ dev = [
 generation = [
     { name = "human-body-prior", git = "https://github.com/nghorbani/human_body_prior.git?rev=4c246d8a83ce16d3cff9c79dcf04d81fa440a6bc" },
     { name = "open3d", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (platform_machine == 'x86_64' and sys_platform == 'win32')", specifier = "==0.10.0.0" },
+    { name = "pywinpty", marker = "sys_platform == 'win32'", specifier = "==2.0.13" },
     { name = "smplx", specifier = "==0.1.28" },
 ]
 
@@ -2124,9 +2126,12 @@ wheels = [
 
 [[package]]
 name = "pywinpty"
-version = "2.0.14"
+version = "2.0.13"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/f1/82/90f8750423cba4b9b6c842df227609fb60704482d7abf6dd47e2babc055a/pywinpty-2.0.14.tar.gz", hash = "sha256:18bd9529e4a5daf2d9719aa17788ba6013e594ae94c5a0c27e83df3278b0660e", size = 27769, upload-time = "2024-10-17T16:01:43.197Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/d9/93956af389ab7d4ef2f558b1cc6c5cb48885d254ac882f212964c30a1e4f/pywinpty-2.0.13.tar.gz", hash = "sha256:c34e32351a3313ddd0d7da23d27f835c860d32fe4ac814d372a3ea9594f41dde", size = 28240, upload-time = "2024-02-26T17:19:34.686Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/84/b27efd41c14e3a62ce768b14928fb3c6134ba4b1dcdbf40264f279f92b37/pywinpty-2.0.13-cp38-none-win_amd64.whl", hash = "sha256:61d420c2116c0212808d31625611b51caf621fe67f8a6377e2e8b617ea1c1f7d", size = 1399479, upload-time = "2024-02-26T17:23:46.018Z" },
+]
 
 [[package]]
 name = "pyyaml"

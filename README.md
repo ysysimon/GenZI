@@ -41,8 +41,11 @@ conda install -y pytorch=2.0.1 torchvision=0.15.2 torchaudio=2.0.2 pytorch-cuda=
 pip install -r requirements.txt
 pip install -U --no-deps smplx==0.1.28 git+https://github.com/nghorbani/human_body_prior.git
 conda install -y open3d-admin::open3d=0.10.0.0
+# If using the local uv workflow on Windows, keep pywinpty pinned to 2.0.13;
+# see docs/nvdiffrast-windows-build.md for NVDiffRast CUDA build notes.
 # Install PyTorch3D: https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md
-# Install AlphaPose: https://github.com/MVIG-SJTU/AlphaPose (try Cython==0.29.35 setuptools==65.7.0 if anything complains)
+# Install AlphaPose: https://github.com/MVIG-SJTU/AlphaPose
+# Local uv workflow can use: uv run python tools/install_alphapose.py --target external/AlphaPose
 # Install torch-mesh-isect: https://github.com/vchoutas/torch-mesh-isect
 # (Try numpy==1.23.4 if numpy complains)
 ```
