@@ -43,10 +43,14 @@ pip install -U --no-deps smplx==0.1.28 git+https://github.com/nghorbani/human_bo
 conda install -y open3d-admin::open3d=0.10.0.0
 # If using the local uv workflow on Windows, keep pywinpty pinned to 2.0.13;
 # see docs/nvdiffrast-windows-build.md for NVDiffRast CUDA build notes.
+# Local uv workflow can use: uv run python tools/install_nvdiffrast.py
 # Install PyTorch3D: https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md
 # Install AlphaPose: https://github.com/MVIG-SJTU/AlphaPose
 # Local uv workflow can use: uv run python tools/install_alphapose.py --target external/AlphaPose
-# Install torch-mesh-isect: https://github.com/vchoutas/torch-mesh-isect
+# Install torch-mesh-isect:
+# uv run python tools/install_mesh_intersection.py --target external/torch-mesh-isect
+# Requires CUDA Toolkit / nvcc and CUDA_SAMPLES_INC pointing to a directory with helper_math.h
+# see docs/mesh-intersection-windows-build.md for mesh_intersection CUDA build notes.
 # (Try numpy==1.23.4 if numpy complains)
 ```
 

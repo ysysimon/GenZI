@@ -17,6 +17,22 @@ from typing import Any, Iterable
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+NVDIFFRAST_INSTALL_COMMAND = "uv run python tools/install_nvdiffrast.py"
+NVDIFFRAST_INSTALL_HINT = (
+    f"请运行 `{NVDIFFRAST_INSTALL_COMMAND}`。该脚本会安装 setuptools / wheel / "
+    "ninja，并用 --no-build-isolation 构建 NVDiffRast。若 nvcc 不在 PATH 中，"
+    "请传入 --cuda-home 或设置 CUDA_HOME / CUDA_PATH。"
+)
+MESH_INTERSECTION_INSTALL_COMMAND = (
+    "uv run python tools/install_mesh_intersection.py "
+    "--target external/torch-mesh-isect"
+)
+MESH_INTERSECTION_INSTALL_HINT = (
+    f"请运行 `{MESH_INTERSECTION_INSTALL_COMMAND}`。"
+    "该 CUDA extension 需要 CUDA Toolkit / nvcc；"
+    "CUDA_SAMPLES_INC 或 --cuda-samples-inc 必须指向包含 helper_math.h 的 "
+    "CUDA Samples include 目录。详见 docs/mesh-intersection-windows-build.md。"
+)
 
 
 @dataclass
@@ -277,12 +293,9 @@ def print_install_guidance() -> None:
     print("\n[推荐安装顺序]")
     print("1. 基础环境: uv sync --frozen")
     print("2. generation Python group: uv sync --group generation")
-    print(
-        "3. CUDA/source 依赖: uv pip install "
-        "git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation"
-    )
+    print(f"3. NVDiffRast: {NVDIFFRAST_INSTALL_COMMAND}")
     print("4. AlphaPose: uv run python tools/install_alphapose.py --target external/AlphaPose")
-    print("5. torch-mesh-isect: 按上游仓库说明 clone 后运行 python setup.py install")
+    print(f"5. torch-mesh-isect: {MESH_INTERSECTION_INSTALL_COMMAND}")
 
 
 def print_section(title: str, results: Iterable[CheckResult]) -> None:
@@ -319,10 +332,7 @@ def main() -> int:
         check_import(
             "nvdiffrast",
             "nvdiffrast.torch",
-            (
-                "请安装 `uv pip install git+https://github.com/NVlabs/nvdiffrast.git "
-                "--no-build-isolation`。"
-            ),
+            NVDIFFRAST_INSTALL_HINT,
         ),
         check_import(
             "open3d",
@@ -347,7 +357,7 @@ def main() -> int:
         check_import(
             "mesh_intersection",
             "mesh_intersection.bvh_search_tree",
-            "请安装 torch-mesh-isect。",
+            MESH_INTERSECTION_INSTALL_HINT,
         ),
         check_optional_import(
             "xformers",

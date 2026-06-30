@@ -15,8 +15,11 @@ from genzi.optional_deps import import_optional_dependency
 
 def _load_mesh_intersection():
     install_hint = (
-        "请按 torch-mesh-isect 文档 clone 后编译安装，例如进入该仓库运行 "
-        "`python setup.py install`。安装后再运行 check_special_deps.py 确认。"
+        "请运行 `uv run python tools/install_mesh_intersection.py "
+        "--target external/torch-mesh-isect`。该 CUDA extension 需要 CUDA "
+        "Toolkit / nvcc；CUDA_SAMPLES_INC 或 --cuda-samples-inc 必须指向包含 "
+        "helper_math.h 的 CUDA Samples include 目录。安装后再运行 "
+        "check_special_deps.py 确认；详见 docs/mesh-intersection-windows-build.md。"
     )
     bvh_module = import_optional_dependency(
         "mesh_intersection.bvh_search_tree",

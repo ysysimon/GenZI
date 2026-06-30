@@ -100,10 +100,10 @@ conda install -y open3d-admin::open3d=0.10.0.0
 NVDiffRast：
 
 ```bash
-uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation
+uv run python tools/install_nvdiffrast.py
 ```
 
-Windows 上需要 CUDA Toolkit 11.7、MSVC `cl.exe` 和若干构建环境变量；详见 [NVDiffRast Windows 构建说明](docs/nvdiffrast-windows-build.md)。
+该脚本会先安装 `setuptools` / `wheel` / `ninja`，再按上游方式用 `--no-build-isolation` 构建 CUDA extension。若 `nvcc` 不在 `PATH` 中，可传 `--cuda-home <CUDA Toolkit 根目录>`；Windows 上需要 MSVC `cl.exe`，遇到 CUDA 11.x 与较新 MSVC 的版本检查冲突时可追加 `--allow-unsupported-msvc`。详见 [NVDiffRast Windows 构建说明](docs/nvdiffrast-windows-build.md)。
 
 AlphaPose：
 
@@ -115,11 +115,11 @@ AlphaPose 上游通常没有稳定 release；辅助脚本默认 checkout `master
 
 torch-mesh-isect：
 
-```text
-https://github.com/vchoutas/torch-mesh-isect
+```bash
+uv run python tools/install_mesh_intersection.py --target external/torch-mesh-isect
 ```
 
-请 clone 后按上游说明编译安装，例如在该仓库中运行 `python setup.py install`。当前默认 generation 配置启用了 `loss.self_intersect_weights`，所以需要该扩展；如果后续把 self-intersection 权重全部设为 0，代码会跳过这个依赖。
+该脚本会 clone 固定 revision 的 `https://github.com/vchoutas/torch-mesh-isect.git`，并用当前 `uv` 环境构建安装 `mesh_intersection` CUDA extension。运行前请先准备 CUDA Toolkit / `nvcc`，并设置 `CUDA_SAMPLES_INC`，或传入 `--cuda-samples-inc <path>`；该路径必须包含 CUDA Samples 里的 `helper_math.h`。当前默认 generation 配置启用了 `loss.self_intersect_weights`，所以需要该扩展；如果只想先跳过这个依赖，可以把 self-intersection 权重全部设为 0，代码会跳过 `mesh_intersection`。详见 [mesh_intersection 构建说明](docs/mesh-intersection-windows-build.md)。
 
 xFormers：
 

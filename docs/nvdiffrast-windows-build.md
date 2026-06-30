@@ -37,12 +37,13 @@ cl.exe from Visual Studio C++ tools
 
 ```powershell
 $env:CUDA_HOME = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.7"
-$env:CUDA_PATH = $env:CUDA_HOME
-$env:Path = "$env:CUDA_HOME\bin;$env:CUDA_HOME\libnvvp;$env:Path"
-$env:DISTUTILS_USE_SDK = "1"
-$env:NVCC_PREPEND_FLAGS = "-allow-unsupported-compiler -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
+uv run python tools/install_nvdiffrast.py --cuda-home $env:CUDA_HOME
+```
 
-uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation
+安装脚本会临时为构建子进程设置 `CUDA_HOME`、`CUDA_PATH`、`PATH` 和 `DISTUTILS_USE_SDK`，并会先安装 `setuptools` / `wheel` / `ninja`。如果遇到较新 MSVC 与 CUDA 11.x 的版本检查冲突，可改用：
+
+```powershell
+uv run python tools/install_nvdiffrast.py --cuda-home $env:CUDA_HOME --allow-unsupported-msvc
 ```
 
 安装后验证：
