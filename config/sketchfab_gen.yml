@@ -34,7 +34,7 @@ render:
   image_size: 512
 
 vlm:
-  ldm_inpaint_path: "stabilityai/stable-diffusion-2-inpainting"
+  ldm_inpaint_path: "sd2-community/stable-diffusion-2-inpainting"
   neg_prompt_path: "${path_prefix}/negative_prompts_v1.txt"
   deterministic: False
   num_inference_steps: 50

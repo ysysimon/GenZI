@@ -83,7 +83,7 @@ GenZI 用同一套 generation / evaluation 管线处理不同来源的 3D 场景
 
 | 字段 | 当前值 | 作用 |
 | --- | --- | --- |
-| `ldm_inpaint_path` | `stabilityai/stable-diffusion-2-inpainting` | Stable Diffusion inpainting 模型名或本地路径。首次运行会从 Hugging Face cache / Hub 读取。 |
+| `ldm_inpaint_path` | `sd2-community/stable-diffusion-2-inpainting` | Stable Diffusion inpainting 模型名或本地路径。首次运行会从 Hugging Face cache / Hub 读取；当前使用可访问的 SD2 inpainting mirror。 |
 | `neg_prompt_path` | `${path_prefix}/negative_prompts_v1.txt` | 通用 negative prompt 文本文件。 |
 | `deterministic` | `False` | 是否固定 inpainting 随机性。 |
 | `num_inference_steps` | `50` | diffusion sampling step 数。 |

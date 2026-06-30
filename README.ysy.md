@@ -160,7 +160,7 @@ uv run python tools/check_special_deps.py --run-cfg config/proxs_gen.yml
 
 | 用途 | 配置值 | 下载方式 |
 | --- | --- | --- |
-| Stable Diffusion inpainting | `stabilityai/stable-diffusion-2-inpainting` | `diffusers` 首次运行 `from_pretrained` 时从 Hugging Face 下载，或读取本地 cache。 |
+| Stable Diffusion inpainting | `sd2-community/stable-diffusion-2-inpainting` | `diffusers` 首次运行 `from_pretrained` 时从 Hugging Face 下载，或读取本地 cache；这是当前可访问的 SD2 inpainting mirror。 |
 | CLIP | `openai/clip-vit-base-patch32` | `transformers` 首次运行 `from_pretrained` 时从 Hugging Face 下载，或读取本地 cache。 |
 
 只需要安装库、不需要额外模型文件的特殊依赖：
