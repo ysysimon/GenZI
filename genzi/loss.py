@@ -4,14 +4,33 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mesh_intersection.bvh_search_tree import BVH
-from mesh_intersection.loss import DistanceFieldPenetrationLoss
 
 ROOT_DIR = osp.join(osp.abspath(osp.dirname(__file__)), "..")
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
 from genzi.misc import linear_weights
+from genzi.optional_deps import import_optional_dependency
+
+
+def _load_mesh_intersection():
+    install_hint = (
+        "请按 torch-mesh-isect 文档 clone 后编译安装，例如进入该仓库运行 "
+        "`python setup.py install`。安装后再运行 check_special_deps.py 确认。"
+    )
+    bvh_module = import_optional_dependency(
+        "mesh_intersection.bvh_search_tree",
+        package_name="torch-mesh-isect / mesh_intersection",
+        purpose="计算 SMPL-X human self-intersection penalty。",
+        install_hint=install_hint,
+    )
+    loss_module = import_optional_dependency(
+        "mesh_intersection.loss",
+        package_name="torch-mesh-isect / mesh_intersection",
+        purpose="计算 SMPL-X human self-intersection penetration loss。",
+        install_hint=install_hint,
+    )
+    return bvh_module.BVH, loss_module.DistanceFieldPenetrationLoss
 
 
 class HSILoss(nn.Module):
@@ -26,11 +45,6 @@ class HSILoss(nn.Module):
         self.inpaint_min_views = cfg["loss.inpaint_min_views"]
         self.beta0_weight = cfg["loss.beta0_weight"]
         self.scene_intersect_thresh = cfg["loss.scene_intersect_thresh"]
-
-        self.bvh = BVH(max_collisions=8)
-        self.dfp_loss = DistanceFieldPenetrationLoss(
-            sigma=0.001, point2plane=False, vectorized=True, penalize_outside=True
-        )
 
         self.angle_loss = SMPLXAnglePrior()
 
@@ -92,6 +106,15 @@ class HSILoss(nn.Module):
             )
             self.joint3d_weights.extend(
                 linear_weights(j3_weights[idx], j3_weights[idx + 1], osteps)
+            )
+
+        self.bvh = None
+        self.dfp_loss = None
+        if any(weight > 0 for weight in self.self_intersect_weights):
+            BVH, DistanceFieldPenetrationLoss = _load_mesh_intersection()
+            self.bvh = BVH(max_collisions=8)
+            self.dfp_loss = DistanceFieldPenetrationLoss(
+                sigma=0.001, point2plane=False, vectorized=True, penalize_outside=True
             )
 
         self.register_buffer("zeros", torch.as_tensor(0).float())
@@ -203,6 +226,7 @@ class HSILoss(nn.Module):
             loss_scene_nocontact = self.zeros
 
         if self.self_intersect_weights[iter_idx] > 0:
+            assert self.bvh is not None and self.dfp_loss is not None
             triangles = vertices[faces]
             triangles = torch.unsqueeze(triangles, dim=0)
             with torch.no_grad():

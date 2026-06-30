@@ -11,7 +11,6 @@ except ImportError:
 import trimesh
 import torch
 import pyrender
-import nvdiffrast.torch as dr
 from copy import deepcopy
 
 ROOT_DIR = osp.join(osp.abspath(osp.dirname(__file__)), "..")
@@ -19,6 +18,19 @@ if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
 from genzi.misc import normalize, to_trimesh
+from genzi.optional_deps import import_optional_dependency
+
+
+def _load_nvdiffrast():
+    return import_optional_dependency(
+        "nvdiffrast.torch",
+        package_name="nvdiffrast",
+        purpose="GPU rasterize，用于 viewpoint 可见性筛选。",
+        install_hint=(
+            "请运行 `uv pip install git+https://github.com/NVlabs/nvdiffrast.git "
+            "--no-build-isolation`，并确认 CUDA/PyTorch 版本匹配。"
+        ),
+    )
 
 
 class Renderer(object):
@@ -239,6 +251,7 @@ class Renderer(object):
     @torch.no_grad()
     def rasterize(self, vertices, faces, camera_ids=None, image_size=None):
         assert isinstance(vertices, torch.Tensor) and isinstance(faces, torch.Tensor)
+        dr = _load_nvdiffrast()
         if self.glctx is None:
             self.glctx = dr.RasterizeCudaContext(vertices.device)
         if image_size is None:

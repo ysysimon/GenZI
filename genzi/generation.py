@@ -8,9 +8,6 @@ import glob
 import shutil
 import torch
 import torch.multiprocessing as mp
-import smplx
-from human_body_prior.models.vposer_model import VPoser
-from human_body_prior.tools.model_loader import load_model
 from omegaconf import OmegaConf
 from pathlib import Path
 from PIL import Image
@@ -52,12 +49,40 @@ from genzi.misc import (
     OptimLogger,
     Timer,
 )
+from genzi.optional_deps import import_optional_dependency
+
+
+def _load_body_model_deps():
+    install_hint = (
+        "请先运行 `uv sync --group generation`。Python 包安装完成后，还需要按 "
+        "README.ysy.md 准备 SMPL-X model、VPoser checkpoint、UV template 和 texture。"
+    )
+    smplx_module = import_optional_dependency(
+        "smplx",
+        package_name="smplx",
+        purpose="创建 SMPL-X body model。",
+        install_hint=install_hint,
+    )
+    vposer_module = import_optional_dependency(
+        "human_body_prior.models.vposer_model",
+        package_name="human_body_prior / VPoser",
+        purpose="加载 VPoser pose prior model。",
+        install_hint=install_hint,
+    )
+    loader_module = import_optional_dependency(
+        "human_body_prior.tools.model_loader",
+        package_name="human_body_prior model_loader",
+        purpose="从本地 VPoser checkpoint 目录加载模型。",
+        install_hint=install_hint,
+    )
+    return smplx_module, vposer_module.VPoser, loader_module.load_model
 
 
 class GenZI(object):
 
     def __init__(self, cfg):
         self.cfg = cfg
+        self.smplx, VPoser, load_model = _load_body_model_deps()
 
         self.device = f'cuda:{cfg["gpus"][0]}' if torch.cuda.is_available() else "cpu"
 
@@ -588,7 +613,7 @@ class GenZI(object):
 
         gender = cfg["smplx.gender"]
 
-        smplx_model = smplx.create(
+        smplx_model = self.smplx.create(
             model_path=cfg["smplx.model_path"],
             model_type=cfg["smplx.model_type"],
             batch_size=cfg["smplx.batch_size"],

@@ -13,7 +13,6 @@ try:
 except ImportError:
     pass
 import trimesh
-import open3d as o3d
 import torch
 import yaml
 import omegaconf
@@ -33,6 +32,20 @@ if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
 from genzi.io import may_create_folder, parent_folder, write_image, read_lines
+from genzi.optional_deps import import_optional_dependency
+
+
+def _load_open3d():
+    return import_optional_dependency(
+        "open3d",
+        package_name="open3d",
+        purpose="读取、写出 mesh/point cloud，以及生成 skeleton mesh。",
+        install_hint=(
+            "推荐先运行 `uv sync --group generation`。如果当前平台没有 "
+            "open3d==0.10.0.0 wheel，请使用 `conda install -y "
+            "open3d-admin::open3d=0.10.0.0`。"
+        ),
+    )
 
 
 class Timer(object):
@@ -339,6 +352,7 @@ def to_trimesh(V, F, VC=None, VN=None):
 
 
 def to_o3d_mesh(V, F, VC=None):
+    o3d = _load_open3d()
     m = o3d.geometry.TriangleMesh(
         o3d.utility.Vector3dVector(np.copy(V)), o3d.utility.Vector3iVector(np.copy(F))
     )
@@ -348,6 +362,7 @@ def to_o3d_mesh(V, F, VC=None):
 
 
 def to_o3d_pcd(V, VN=None, VC=None):
+    o3d = _load_open3d()
     p = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(np.copy(V)))
     if VN is not None:
         p.normals = o3d.utility.Vector3dVector(np.copy(VN))
@@ -365,6 +380,7 @@ def load_trimesh(filepath, force=None):
 
 
 def read_mesh(filepath, has_vc=False, rot_axes="", rot_angles=[]):
+    o3d = _load_open3d()
     m = o3d.io.read_triangle_mesh(filepath)
     if rot_axes is not None and rot_axes != "":
         assert len(rot_axes) == len(rot_angles)
@@ -382,18 +398,21 @@ def read_mesh(filepath, has_vc=False, rot_axes="", rot_angles=[]):
 
 
 def read_pcd(filepath):
+    o3d = _load_open3d()
     m = o3d.io.read_point_cloud(filepath)
     V = np.asarray(m.points).astype(np.float32)
     return V
 
 
 def save_mesh(filepath, V, F, VC=None):
+    o3d = _load_open3d()
     m = to_o3d_mesh(V, F, VC)
     may_create_folder(parent_folder(filepath))
     return o3d.io.write_triangle_mesh(filepath, m)
 
 
 def save_pcd(filepath, V, VN=None, VC=None):
+    o3d = _load_open3d()
     p = to_o3d_pcd(V, VN, VC)
     may_create_folder(parent_folder(filepath))
     return o3d.io.write_point_cloud(filepath, p)
@@ -445,6 +464,7 @@ def save_smplx_mesh(
 
 
 def generate_skeletion_mesh(points, indices, radius=0.025):
+    o3d = _load_open3d()
     mesh = None
     for i in range(len(indices)):
         p0 = points[indices[i, 0]]

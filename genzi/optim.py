@@ -4,11 +4,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pytorch3d.transforms import axis_angle_to_matrix, matrix_to_axis_angle
 
 ROOT_DIR = osp.join(osp.abspath(osp.dirname(__file__)), "..")
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
+
+from genzi.rotation import axis_angle_to_matrix, matrix_to_axis_angle
 
 
 class SmplxParams(nn.Module):

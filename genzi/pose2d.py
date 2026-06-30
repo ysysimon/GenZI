@@ -5,22 +5,97 @@ import platform
 import time
 import numpy as np
 import torch
-import alphapose
-from alphapose.utils.transforms import get_func_heatmap_to_coord
-from alphapose.utils.pPose_nms import pose_nms, write_json
-from alphapose.utils.presets import SimpleTransform, SimpleTransform3DSMPL
-from alphapose.utils.transforms import flip, flip_heatmap
-from alphapose.models import builder
-from alphapose.utils.config import update_config
-from detector.apis import get_detector
-from alphapose.utils.vis import getTime
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT_DIR = osp.join(osp.abspath(osp.dirname(__file__)), "..")
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
-ALPHAPOSE_DIR = osp.join(osp.abspath(osp.dirname(alphapose.__file__)), "..")
+from genzi.optional_deps import import_optional_dependency
+
+
+_ALPHAPOSE_DEPS = None
+
+
+def _load_alphapose_deps():
+    global _ALPHAPOSE_DEPS
+    if _ALPHAPOSE_DEPS is not None:
+        return _ALPHAPOSE_DEPS
+
+    install_hint = (
+        "先运行 `uv run python tools/install_alphapose.py --target external/AlphaPose`，"
+        "再按文档准备 AlphaPose checkpoint 和 detector 权重。"
+    )
+    alphapose = import_optional_dependency(
+        "alphapose",
+        package_name="AlphaPose",
+        purpose="从 inpaint 结果中提取 2D human pose。",
+        install_hint=install_hint,
+    )
+    transforms = import_optional_dependency(
+        "alphapose.utils.transforms",
+        package_name="AlphaPose transforms",
+        purpose="AlphaPose heatmap 与图像变换。",
+        install_hint=install_hint,
+    )
+    ppose_nms = import_optional_dependency(
+        "alphapose.utils.pPose_nms",
+        package_name="AlphaPose pPose_nms",
+        purpose="AlphaPose pose NMS 与 JSON 输出。",
+        install_hint=install_hint,
+    )
+    presets = import_optional_dependency(
+        "alphapose.utils.presets",
+        package_name="AlphaPose presets",
+        purpose="AlphaPose 输入图像预处理。",
+        install_hint=install_hint,
+    )
+    builder = import_optional_dependency(
+        "alphapose.models.builder",
+        package_name="AlphaPose model builder",
+        purpose="构建 AlphaPose pose model。",
+        install_hint=install_hint,
+    )
+    config = import_optional_dependency(
+        "alphapose.utils.config",
+        package_name="AlphaPose config",
+        purpose="读取 AlphaPose 配置文件。",
+        install_hint=install_hint,
+    )
+    vis = import_optional_dependency(
+        "alphapose.utils.vis",
+        package_name="AlphaPose vis",
+        purpose="AlphaPose runtime profiling 和可视化输出。",
+        install_hint=install_hint,
+    )
+    detector_apis = import_optional_dependency(
+        "detector.apis",
+        package_name="AlphaPose detector",
+        purpose="运行 AlphaPose person detector。",
+        install_hint=(
+            install_hint
+            + " 如果这里失败，请确认 AlphaPose checkout 已通过 setup.py develop 安装，"
+            "或把 external/AlphaPose 加入 PYTHONPATH。"
+        ),
+    )
+
+    alphapose_dir = osp.join(osp.abspath(osp.dirname(alphapose.__file__)), "..")
+    _ALPHAPOSE_DEPS = SimpleNamespace(
+        alphapose_dir=alphapose_dir,
+        builder=builder,
+        flip=transforms.flip,
+        flip_heatmap=transforms.flip_heatmap,
+        get_detector=detector_apis.get_detector,
+        get_func_heatmap_to_coord=transforms.get_func_heatmap_to_coord,
+        get_time=vis.getTime,
+        pose_nms=ppose_nms.pose_nms,
+        SimpleTransform=presets.SimpleTransform,
+        SimpleTransform3DSMPL=presets.SimpleTransform3DSMPL,
+        update_config=config.update_config,
+        write_json=ppose_nms.write_json,
+    )
+    return _ALPHAPOSE_DEPS
 
 smplx_alphapose_corrs = np.asarray(
     [
@@ -80,15 +155,16 @@ smplx_alphapose_limb_corrs = np.asarray(
 class Pose2DPipeline(object):
 
     def __init__(self, args_path, **kwargs):
-        args = update_config(args_path)
-        args.cfg = osp.join(ALPHAPOSE_DIR, args.cfg)
-        args.checkpoint = osp.join(ALPHAPOSE_DIR, args.checkpoint)
+        self.deps = _load_alphapose_deps()
+        args = self.deps.update_config(args_path)
+        args.cfg = osp.join(self.deps.alphapose_dir, args.cfg)
+        args.checkpoint = osp.join(self.deps.alphapose_dir, args.checkpoint)
         exp_time = time.strftime("%y-%m-%d_%H-%M-%S")
         args.outputpath = osp.join(args.outputpath, exp_time)
         for k, w in kwargs.items():
             args[k] = w
 
-        cfg = update_config(args.cfg)
+        cfg = self.deps.update_config(args.cfg)
 
         if platform.system() == "Windows":
             args.sp = True
@@ -108,9 +184,13 @@ class Pose2DPipeline(object):
         self.args = args
         self.cfg = cfg
 
-        self.det_loader = DetectionLoader(get_detector(args), cfg, args)
+        self.det_loader = DetectionLoader(
+            self.deps.get_detector(args), cfg, args, self.deps
+        )
 
-        pose_model = builder.build_sppe(cfg.MODEL, preset_cfg=cfg.DATA_PRESET)
+        pose_model = self.deps.builder.build_sppe(
+            cfg.MODEL, preset_cfg=cfg.DATA_PRESET
+        )
         print("Loading pose model from %s..." % (args.checkpoint,))
         pose_model.load_state_dict(
             torch.load(args.checkpoint, map_location=args.device)
@@ -124,16 +204,16 @@ class Pose2DPipeline(object):
         pose_model.eval()
         self.pose_model = pose_model
 
-        self.pose_dataset = builder.retrieve_dataset(cfg.DATASET.TRAIN)
+        self.pose_dataset = self.deps.builder.retrieve_dataset(cfg.DATASET.TRAIN)
 
     @torch.no_grad()
     def __call__(self, image, im_name="temp.png"):
-        writer = DataWriter(self.cfg, self.args)
+        writer = DataWriter(self.cfg, self.args, self.deps)
 
         runtime_profile = {"dt": [], "pt": [], "pn": []}
         pose = None
 
-        start_time = getTime()
+        start_time = self.deps.get_time()
 
         (inps, orig_img, im_name, boxes, scores, ids, cropped_boxes) = (
             self.det_loader.process(im_name, image).read()
@@ -142,37 +222,37 @@ class Pose2DPipeline(object):
             raise Exception("no image is given")
         if boxes is None or boxes.nelement() == 0:
             if self.args.profile:
-                ckpt_time, det_time = getTime(start_time)
+                ckpt_time, det_time = self.deps.get_time(start_time)
                 runtime_profile["dt"].append(det_time)
             writer.save(None, None, None, None, None, orig_img, im_name)
             if self.args.profile:
-                ckpt_time, pose_time = getTime(ckpt_time)
+                ckpt_time, pose_time = self.deps.get_time(ckpt_time)
                 runtime_profile["pt"].append(pose_time)
             pose = writer.start()
             if self.args.profile:
-                ckpt_time, post_time = getTime(ckpt_time)
+                ckpt_time, post_time = self.deps.get_time(ckpt_time)
                 runtime_profile["pn"].append(post_time)
         else:
             if self.args.profile:
-                ckpt_time, det_time = getTime(start_time)
+                ckpt_time, det_time = self.deps.get_time(start_time)
                 runtime_profile["dt"].append(det_time)
             inps = inps.to(self.args.device)
             if self.args.flip:
-                inps = torch.cat((inps, flip(inps)))
+                inps = torch.cat((inps, self.deps.flip(inps)))
             hm = self.pose_model(inps)
             if self.args.flip:
-                hm_flip = flip_heatmap(
+                hm_flip = self.deps.flip_heatmap(
                     hm[int(len(hm) / 2) :], self.pose_dataset.joint_pairs, shift=True
                 )
                 hm = (hm[0 : int(len(hm) / 2)] + hm_flip) / 2
             if self.args.profile:
-                ckpt_time, pose_time = getTime(ckpt_time)
+                ckpt_time, pose_time = self.deps.get_time(ckpt_time)
                 runtime_profile["pt"].append(pose_time)
             hm = hm.cpu()
             writer.save(boxes, scores, ids, hm, cropped_boxes, orig_img, im_name)
             pose = writer.start()
             if self.args.profile:
-                ckpt_time, post_time = getTime(ckpt_time)
+                ckpt_time, post_time = self.deps.get_time(ckpt_time)
                 runtime_profile["pn"].append(post_time)
 
         if self.args.profile:
@@ -189,11 +269,12 @@ class Pose2DPipeline(object):
 
 class DetectionLoader:
 
-    def __init__(self, detector, cfg, opt):
+    def __init__(self, detector, cfg, opt, deps):
         self.cfg = cfg
         self.opt = opt
         self.device = opt.device
         self.detector = detector
+        self.deps = deps
 
         self._input_size = cfg.DATA_PRESET.IMAGE_SIZE
         self._output_size = cfg.DATA_PRESET.HEATMAP_SIZE
@@ -201,8 +282,8 @@ class DetectionLoader:
         self._sigma = cfg.DATA_PRESET.SIGMA
 
         if cfg.DATA_PRESET.TYPE == "simple":
-            pose_dataset = builder.retrieve_dataset(self.cfg.DATASET.TRAIN)
-            self.transformation = SimpleTransform(
+            pose_dataset = self.deps.builder.retrieve_dataset(self.cfg.DATASET.TRAIN)
+            self.transformation = self.deps.SimpleTransform(
                 pose_dataset,
                 scale_factor=0,
                 input_size=self._input_size,
@@ -224,7 +305,7 @@ class DetectionLoader:
                     "bbox_3d_shape": (2.2, 2.2, 2.2),
                 }
             )
-            self.transformation = SimpleTransform3DSMPL(
+            self.transformation = self.deps.SimpleTransform3DSMPL(
                 dummpy_set,
                 scale_factor=cfg.DATASET.SCALE_FACTOR,
                 color_factor=cfg.DATASET.COLOR_FACTOR,
@@ -322,12 +403,13 @@ class DetectionLoader:
 
 class DataWriter:
 
-    def __init__(self, cfg, opt):
+    def __init__(self, cfg, opt, deps):
         self.cfg = cfg
         self.opt = opt
+        self.deps = deps
 
         self.eval_joints = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-        self.heatmap_to_coord = get_func_heatmap_to_coord(cfg)
+        self.heatmap_to_coord = self.deps.get_func_heatmap_to_coord(cfg)
         self.item = (None, None, None, None, None, None, None)
 
         if opt.save_img:
@@ -432,14 +514,16 @@ class DataWriter:
             preds_img = torch.cat(pose_coords)
             preds_scores = torch.cat(pose_scores)
             if not self.opt.pose_track:
-                boxes, scores, ids, preds_img, preds_scores, pick_ids = pose_nms(
-                    boxes,
-                    scores,
-                    ids,
-                    preds_img,
-                    preds_scores,
-                    self.opt.min_box_area,
-                    use_heatmap_loss=self.use_heatmap_loss,
+                boxes, scores, ids, preds_img, preds_scores, pick_ids = (
+                    self.deps.pose_nms(
+                        boxes,
+                        scores,
+                        ids,
+                        preds_img,
+                        preds_scores,
+                        self.opt.min_box_area,
+                        use_heatmap_loss=self.use_heatmap_loss,
+                    )
                 )
 
             _result = []
@@ -469,7 +553,7 @@ class DataWriter:
                 for i in range(len(poseflow_result)):
                     result["result"][i]["idx"] = poseflow_result[i]["idx"]
 
-            write_json(
+            self.deps.write_json(
                 [result],
                 self.opt.outputpath,
                 form=self.opt.format,
