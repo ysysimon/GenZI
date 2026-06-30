@@ -90,7 +90,7 @@ xFormers：
 uv pip install xformers==0.0.20
 ```
 
-`xformers` 当前不作为基础依赖安装；代码没有直接 import 它，通常只在 diffusion 后端优化时才需要。
+`xformers` 当前不作为基础依赖安装；代码没有直接 import 它，通常只在 diffusion 后端优化时才需要。它不是 generation 的必需依赖。
 
 Open3D：
 
@@ -134,12 +134,54 @@ https://github.com/vchoutas/torch-mesh-isect
 uv run python -c "import smplx; import human_body_prior; import nvdiffrast; import open3d; import pytorch3d; import alphapose; import mesh_intersection; print('special deps ok')"
 ```
 
-## 5. 基础验证
+## 5. 模型与权重文件准备
 
-检查 PyTorch 版本：
+安装 Python 包并不会自动准备所有模型文件。当前 generation 配置还需要下面这些本地模型、权重或资产文件。
+
+需要手动准备的模型 / 资产：
+
+| 用途 | 当前配置期待路径 | 说明 |
+| --- | --- | --- |
+| SMPL-X model | `./data/smpl-x/models_smplx_v1_1` | `smplx` 只提供 Python API，不会下载 SMPL-X 模型文件。请按 SMPL-X 官方许可下载后放到该目录。 |
+| VPoser checkpoint | `./data/smpl-x/vposer_V02_05` | `human_body_prior` 只提供 VPoser 代码，不会自动下载 checkpoint。请准备兼容 GenZI 的 VPoser V02_05 目录。 |
+| SMPL-X UV template | `./data/smpl-x/smplx_uv_template.txt` | 用于保存带 UV 的 `optim_human.obj`。 |
+| SMPL-X texture | `./data/smpl-x/smplx_texture_f_alb_1024.png` | 用于保存带贴图的 SMPL-X mesh。 |
+| AlphaPose pose checkpoint | AlphaPose 安装目录下的 `pretrained_models/noface_fast50_dcn_combined_256x192.pth` | 路径来自 `config/alphapose.yml` 的 `checkpoint` 字段，代码会按 AlphaPose 安装目录拼接。 |
+| AlphaPose detector 权重 | 由 `config/alphapose.yml` 的 `detector: "yolo"` 和 AlphaPose 自身 detector 配置决定 | 请按 AlphaPose 官方安装说明准备对应 detector 权重；本仓库不自动下载。 |
+
+运行时会自动下载或读取缓存的模型：
+
+| 用途 | 配置值 | 下载方式 |
+| --- | --- | --- |
+| Stable Diffusion inpainting | `stabilityai/stable-diffusion-2-inpainting` | `diffusers` 首次运行 `from_pretrained` 时从 Hugging Face 下载，或读取本地 cache。 |
+| CLIP | `openai/clip-vit-base-patch32` | `transformers` 首次运行 `from_pretrained` 时从 Hugging Face 下载，或读取本地 cache。 |
+
+只需要安装库、不需要额外模型文件的特殊依赖：
+
+```text
+nvdiffrast
+open3d
+mesh_intersection / torch-mesh-isect
+pytorch3d
+```
+
+`xformers` 当前是可选 diffusion 优化依赖，不属于必需项。
+
+推荐在运行 generation 前使用检查脚本一次性确认依赖和模型文件：
+
+```powershell
+uv run python tools/check_special_deps.py --run-cfg config/sketchfab_gen.yml
+uv run python tools/check_special_deps.py --run-cfg config/proxs_gen.yml
+```
+
+脚本会区分 `OK`、`缺依赖`、`缺模型文件` 和 `可选项`。如果只想查看诊断结果、不希望缺失项导致非零退出码，可追加 `--no-fail`。
+
+## 6. 基础验证
+
+检查 PyTorch 版本和 CUDA 设备是否可用：
 
 ```bash
-uv run python -c "import torch; print(torch.__version__)"
+uv run python -c "import sys, torch; cuda_ok = torch.cuda.is_available(); device = torch.cuda.get_device_name(0) if cuda_ok else 'none'; print('torch:', torch.__version__); print('cuda available:', cuda_ok); print('cuda device:', device); sys.exit(0 if cuda_ok else 1)"
 ```
 
 检查 SDF probe CLI：
