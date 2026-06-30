@@ -132,6 +132,7 @@ dmypy.json
 data/
 log/
 wandb/
+external/AlphaPose/
 .vscode/
 .fuse_hidden*
 

@@ -273,6 +273,18 @@ def check_auto_downloads(cfg: dict[str, Any]) -> list[CheckResult]:
     return results
 
 
+def print_install_guidance() -> None:
+    print("\n[推荐安装顺序]")
+    print("1. 基础环境: uv sync --frozen")
+    print("2. generation Python group: uv sync --group generation")
+    print(
+        "3. CUDA/source 依赖: uv pip install "
+        "git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation"
+    )
+    print("4. AlphaPose: uv run python tools/install_alphapose.py --target external/AlphaPose")
+    print("5. torch-mesh-isect: 按上游仓库说明 clone 后运行 python setup.py install")
+
+
 def print_section(title: str, results: Iterable[CheckResult]) -> None:
     print(f"\n[{title}]")
     for result in results:
@@ -294,22 +306,28 @@ def main() -> int:
         check_import(
             "smplx",
             "smplx",
-            "请安装 `uv pip install --no-deps smplx==0.1.28`。",
+            "请运行 `uv sync --group generation`。",
         ),
         check_import(
             "human_body_prior / VPoser",
             "human_body_prior.models.vposer_model",
-            "请安装兼容 Python 3.8 的 human_body_prior 版本或固定 commit。",
+            (
+                "请运行 `uv sync --group generation`；该 group 会固定到兼容 "
+                "Python 3.8 的 human_body_prior commit。"
+            ),
         ),
         check_import(
             "nvdiffrast",
             "nvdiffrast.torch",
-            "请安装 `uv pip install git+https://github.com/NVlabs/nvdiffrast.git`。",
+            (
+                "请安装 `uv pip install git+https://github.com/NVlabs/nvdiffrast.git "
+                "--no-build-isolation`。"
+            ),
         ),
         check_import(
             "open3d",
             "open3d",
-            "请安装 `uv pip install open3d==0.10.0.0`，无 wheel 时使用 conda fallback。",
+            "请运行 `uv sync --group generation`，无 wheel 时使用 conda fallback。",
         ),
         check_import(
             "alphapose",
@@ -320,11 +338,6 @@ def main() -> int:
             "mesh_intersection",
             "mesh_intersection.bvh_search_tree",
             "请安装 torch-mesh-isect。",
-        ),
-        check_import(
-            "pytorch3d",
-            "pytorch3d.transforms",
-            "请按 PyTorch3D 官方安装说明选择与 torch/CUDA 匹配的 wheel 或源码构建。",
         ),
         check_optional_import(
             "xformers",
@@ -367,6 +380,7 @@ def main() -> int:
     print("GenZI 特殊依赖与模型文件检查")
     print(f"run_cfg: {run_cfg_path}")
     print(f"repo_root: {REPO_ROOT}")
+    print_install_guidance()
     print_section("Python 依赖", python_results)
     print_section("模型/资产文件", asset_results)
     print_section("运行时自动下载模型", auto_results)

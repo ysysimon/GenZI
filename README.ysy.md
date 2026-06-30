@@ -70,50 +70,62 @@ $env:PYOPENGL_PLATFORM = "egl"
 
 ## 4. 特殊依赖
 
-下面这些依赖和 CUDA、平台 wheel、源码编译或第三方仓库绑定较深，不放进基础 `uv sync` 里一键锁定。基础环境同步后，再按需要单独安装。
-
-SMPL-X / VPoser：
+基础环境同步后，generation 推荐先安装专用依赖组：
 
 ```bash
-uv pip install --no-deps smplx==0.1.28 git+https://github.com/nghorbani/human_body_prior.git
+uv sync --group generation
 ```
 
-NVDiffRast：
+这个 group 会安装：
 
-```bash
-uv pip install git+https://github.com/NVlabs/nvdiffrast.git
+```text
+smplx==0.1.28
+human_body_prior @ 4c246d8a83ce16d3cff9c79dcf04d81fa440a6bc
+open3d==0.10.0.0  # 仅 Windows/Linux x86_64 类平台
 ```
 
-xFormers：
+`human_body_prior` 固定到旧 commit，是因为当前上游默认说明已经面向更新 Python 版本，而 GenZI 当前环境固定为 Python 3.8。
 
-```bash
-uv pip install xformers==0.0.20
-```
-
-`xformers` 当前不作为基础依赖安装；代码没有直接 import 它，通常只在 diffusion 后端优化时才需要。它不是 generation 的必需依赖。
-
-Open3D：
-
-```bash
-uv pip install open3d==0.10.0.0
-```
-
-如果 `open3d==0.10.0.0` 在当前平台没有可用 wheel，优先参考原 README 的 conda 安装方式：
+如果 `open3d==0.10.0.0` 在当前平台没有可用 wheel，使用 conda fallback：
 
 ```bash
 conda install -y open3d-admin::open3d=0.10.0.0
 ```
 
-PyTorch3D：
+下面这些依赖仍然需要单独处理，因为它们依赖 CUDA/source build、外部仓库布局或额外权重文件。
 
-```text
-https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md
+NVDiffRast：
+
+```bash
+uv pip install git+https://github.com/NVlabs/nvdiffrast.git --no-build-isolation
 ```
 
 AlphaPose：
 
+```bash
+uv run python tools/install_alphapose.py --target external/AlphaPose
+```
+
+AlphaPose 上游通常没有稳定 release；辅助脚本默认 checkout `master`，需要复现实验时可以传 `--rev <commit>` 固定版本。脚本不会下载 pose checkpoint 或 detector 权重，这些文件仍需按 AlphaPose 文档手动准备。
+
+torch-mesh-isect：
+
 ```text
-https://github.com/MVIG-SJTU/AlphaPose
+https://github.com/vchoutas/torch-mesh-isect
+```
+
+请 clone 后按上游说明编译安装，例如在该仓库中运行 `python setup.py install`。当前默认 generation 配置启用了 `loss.self_intersect_weights`，所以需要该扩展；如果后续把 self-intersection 权重全部设为 0，代码会跳过这个依赖。
+
+xFormers：
+
+```text
+xformers 当前不作为必需依赖安装；代码没有直接 import 它，通常只在 diffusion 后端优化时才需要。
+```
+
+PyTorch3D：
+
+```text
+当前 GenZI 已使用本地 torch rotation helper 替代 PyTorch3D 的两个 rotation 函数，不再需要单独安装 PyTorch3D。
 ```
 
 如果 AlphaPose 编译报错，可优先尝试原 README 建议的版本：
@@ -122,16 +134,11 @@ https://github.com/MVIG-SJTU/AlphaPose
 uv pip install Cython==0.29.35 setuptools==65.7.0
 ```
 
-torch-mesh-isect：
+推荐用 doctor 脚本做完整检查，不再用单行 import 命令：
 
-```text
-https://github.com/vchoutas/torch-mesh-isect
-```
-
-这些依赖安装后可用下面的命令做 import 检查：
-
-```bash
-uv run python -c "import smplx; import human_body_prior; import nvdiffrast; import open3d; import pytorch3d; import alphapose; import mesh_intersection; print('special deps ok')"
+```powershell
+uv run python tools/check_special_deps.py --run-cfg config/sketchfab_gen.yml
+uv run python tools/check_special_deps.py --run-cfg config/proxs_gen.yml
 ```
 
 ## 5. 模型与权重文件准备
@@ -162,10 +169,9 @@ uv run python -c "import smplx; import human_body_prior; import nvdiffrast; impo
 nvdiffrast
 open3d
 mesh_intersection / torch-mesh-isect
-pytorch3d
 ```
 
-`xformers` 当前是可选 diffusion 优化依赖，不属于必需项。
+`pytorch3d` 当前已不再需要安装；`xformers` 是可选 diffusion 优化依赖，不属于必需项。
 
 推荐在运行 generation 前使用检查脚本一次性确认依赖和模型文件：
 
