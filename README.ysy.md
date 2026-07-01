@@ -13,6 +13,26 @@ uv sync --frozen
 
 `.python-version` 固定为 Python 3.8，`uv.lock` 用于复现基础依赖。默认 PyTorch 版本为 `torch==2.0.1`，并通过 PyTorch CUDA 11.7 wheel index 安装。
 
+`uv sync` 默认会把当前 `.venv` 精确同步到本次选择的依赖集合：缺少的包会安装，不在集合里的包会被移除。这个行为适合创建干净基础环境，但如果当前环境里已经通过脚本或源码编译安装了 `nvdiffrast`、`mesh_intersection`、AlphaPose 等特殊依赖，普通 `uv sync --frozen` 可能会把它们卸载。
+
+常用同步方式：
+```bash
+# 干净复现基础环境；可能移除额外安装的特殊依赖
+uv sync --frozen
+
+# 日常补齐基础/dev 依赖，同时保留当前 .venv 里的额外包
+uv sync --frozen --inexact
+
+# 安装 generation 依赖组，并保留脚本/源码安装的特殊依赖
+uv sync --frozen --group generation --inexact
+```
+
+如果不确定当前命令会改动哪些包，先用 `--dry-run` 查看计划：
+```bash
+uv sync --frozen --dry-run
+uv sync --frozen --group generation --inexact --dry-run
+```
+
 ## 2. 常用入口
 
 运行 Sketchfab generation：
@@ -73,7 +93,7 @@ $env:PYOPENGL_PLATFORM = "egl"
 基础环境同步后，generation 推荐先安装专用依赖组：
 
 ```bash
-uv sync --group generation
+uv sync --frozen --group generation --inexact
 ```
 
 这个 group 会安装：
@@ -201,6 +221,12 @@ uv run python -c "import sys, torch; cuda_ok = torch.cuda.is_available(); device
 
 ```bash
 uv run python gen_sdf/probe_genzi_sdf.py --help
+```
+
+检查开发工具依赖：
+```bash
+uv run --frozen python -m pytest tests
+uv run --frozen ruff --version
 ```
 
 如果 `uv sync --frozen` 失败，先检查当前平台是否支持 `torch==2.0.1/cu117` 对应的 wheel。`tensorflow`、`torchaudio`、`SharedArray` 和 `xformers` 没有在当前代码里直接使用，已不放入基础 uv 环境；如后续确认某条路径需要，再按需单独安装。

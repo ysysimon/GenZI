@@ -85,6 +85,7 @@ class TestMeshIntersectionInstaller(unittest.TestCase):
                     "--python",
                     sys.executable,
                     "--no-build-isolation",
+                    "--no-deps",
                     str(target.resolve()),
                 ],
             )

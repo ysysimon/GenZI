@@ -1,4 +1,6 @@
 black 
+pytest>=8.3.5
+ruff>=0.15.20
 chumpy==0.70 
 easydict==1.10 
 ftfy==6.1.1 
