@@ -59,8 +59,8 @@ GenZI 用同一套 generation / evaluation 管线处理不同来源的 3D 场景
 | 字段 | 当前值 / 差异 | 作用 |
 | --- | --- | --- |
 | `model_path` | `${path_prefix}/smpl-x/models_smplx_v1_1` | SMPL-X 模型目录。 |
-| `uv_path` | `${path_prefix}/smpl-x/smplx_uv_template.txt` | 导出 textured OBJ 时使用的 UV template。 |
-| `tex_path` | `${path_prefix}/smpl-x/smplx_texture_f_alb_1024.png` | 导出 textured OBJ 时使用的 texture。 |
+| `uv_path` | `${path_prefix}/smpl-x/smplx_uv_template.txt` | 导出 textured OBJ 时使用的 UV template；缺失时会跳过 OBJ 导出，推理仍可继续并保留 `optim_human.ply`。 |
+| `tex_path` | `${path_prefix}/smpl-x/smplx_texture_f_alb_1024.png` | 导出 textured OBJ 时使用的 texture；缺失时 OBJ 不带贴图或跳过贴图复制，不影响推理。 |
 | `model_type` | `smplx` | 传给 `smplx.create`。 |
 | `gender` | `neutral` | SMPL-X gender。 |
 | `batch_size` | `1` | 单次优化的人体数量。 |

@@ -39,10 +39,10 @@ from genzi.misc import (
     get_time,
     get_tqdm,
     join_texts,
+    load_optim_human_mesh,
     omegaconf_to_dotdict,
     save_mesh,
     save_smplx_mesh,
-    load_trimesh,
     seeding,
     to_numpy,
     valid_str,
@@ -55,7 +55,8 @@ from genzi.optional_deps import import_optional_dependency
 def _load_body_model_deps():
     install_hint = (
         "请先运行 `uv sync --group generation`。Python 包安装完成后，还需要按 "
-        "README.ysy.md 准备 SMPL-X model、VPoser checkpoint、UV template 和 texture。"
+        "README.ysy.md 准备 SMPL-X model 和 VPoser checkpoint；UV template 和 texture "
+        "只影响 textured OBJ 可视化导出。"
     )
     smplx_module = import_optional_dependency(
         "smplx",
@@ -795,8 +796,8 @@ class GenZI(object):
                     sem_dict = self.semantic_func(
                         data_type=cfg["group"],
                         scene_mesh=self.scene3d.get_trimesh(),
-                        human_mesh=load_trimesh(
-                            osp.join(log_dir, sp_dir, ip_dir, "optim_human.obj")
+                        human_mesh=load_optim_human_mesh(
+                            osp.join(log_dir, sp_dir, ip_dir)
                         ),
                         viewpoints=sviewpoints,
                         look_at=slook_at,

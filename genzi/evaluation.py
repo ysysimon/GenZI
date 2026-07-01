@@ -19,6 +19,7 @@ from genzi.io import (
 from genzi.misc import (
     get_time,
     join_texts,
+    load_optim_human_mesh,
     load_trimesh,
     omegaconf_to_dotdict,
     seeding,
@@ -170,7 +171,7 @@ def main(cfg):
                 viewpoints = view_data["viewpoints"]
                 look_at = view_data["look_at"]
 
-                human_mesh = load_trimesh(osp.join(stage_dir, "optim_human.obj"))
+                human_mesh = load_optim_human_mesh(stage_dir)
 
                 sem_dict = semantic_func(
                     data_type=cfg["group"],

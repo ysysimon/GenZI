@@ -145,29 +145,49 @@ def check_optional_import(label: str, module_name: str, hint: str) -> CheckResul
     )
 
 
-def check_path(label: str, path: Path | None, hint: str, expect_dir: bool) -> CheckResult:
+def check_path(
+    label: str,
+    path: Path | None,
+    hint: str,
+    expect_dir: bool,
+    required: bool = True,
+) -> CheckResult:
+    missing_status = "缺模型文件" if required else "可选项"
     if path is None:
-        return CheckResult(name=label, status="缺模型文件", detail=f"配置中未找到路径。{hint}")
+        return CheckResult(
+            name=label,
+            status=missing_status,
+            detail=f"配置中未找到路径。{hint}",
+            required=required,
+        )
     if not path.exists():
         return CheckResult(
             name=label,
-            status="缺模型文件",
+            status=missing_status,
             detail=f"未找到 {path}。{hint}",
+            required=required,
         )
     if expect_dir and not path.is_dir():
         return CheckResult(
             name=label,
-            status="缺模型文件",
+            status=missing_status,
             detail=f"{path} 存在但不是目录。{hint}",
+            required=required,
         )
     if not expect_dir and not path.is_file():
         return CheckResult(
             name=label,
-            status="缺模型文件",
+            status=missing_status,
             detail=f"{path} 存在但不是文件。{hint}",
+            required=required,
         )
     kind = "目录" if expect_dir else "文件"
-    return CheckResult(name=label, status="OK", detail=f"已找到 {kind}: {path}")
+    return CheckResult(
+        name=label,
+        status="OK",
+        detail=f"已找到 {kind}: {path}",
+        required=required,
+    )
 
 
 def get_alphapose_root() -> Path | None:
@@ -382,14 +402,16 @@ def main() -> int:
         check_path(
             "SMPL-X UV template",
             as_repo_path(get_nested(cfg, "smplx.uv_path")),
-            "请从 SMPL-X 资产中准备该文件。",
+            "仅用于导出 textured OBJ；缺失时 generation 会跳过 optim_human.obj，继续保留 optim_human.ply。",
             expect_dir=False,
+            required=False,
         ),
         check_path(
             "SMPL-X texture",
             as_repo_path(get_nested(cfg, "smplx.tex_path")),
-            "请从 SMPL-X 资产中准备该贴图。",
+            "仅用于 textured OBJ 贴图；缺失时会导出无贴图 OBJ 或跳过贴图复制。",
             expect_dir=False,
+            required=False,
         ),
     ]
 

@@ -4,6 +4,7 @@ import subprocess
 import re
 import random
 import time
+import warnings
 import numpy as np
 import cv2
 try:
@@ -379,6 +380,23 @@ def load_trimesh(filepath, force=None):
     return trimesh.load(filepath, force=force, process=False, validate=False)
 
 
+def get_optim_human_mesh_path(root_dir):
+    root_path = Path(root_dir)
+    obj_path = root_path / "optim_human.obj"
+    ply_path = root_path / "optim_human.ply"
+    if obj_path.is_file():
+        return obj_path
+    if ply_path.is_file():
+        return ply_path
+    raise FileNotFoundError(
+        f"Could not find optim_human mesh. Expected {obj_path} or {ply_path}."
+    )
+
+
+def load_optim_human_mesh(root_dir, force=None):
+    return load_trimesh(get_optim_human_mesh_path(root_dir), force=force)
+
+
 def read_mesh(filepath, has_vc=False, rot_axes="", rot_angles=[]):
     o3d = _load_open3d()
     m = o3d.io.read_triangle_mesh(filepath)
@@ -431,8 +449,28 @@ def save_smplx_mesh(
     d=1.0,
     illum=2,
 ):
+    if not valid_str(template_path) or not Path(str(template_path)).is_file():
+        warnings.warn(
+            "Skipping SMPL-X OBJ export because UV template is missing: "
+            f"{template_path}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return False
+
     root_dir = parent_folder(filepath)
     filename = Path(filepath).stem
+    texture_file = None
+    if valid_str(texture_path):
+        texture_file = Path(str(texture_path))
+        if not texture_file.is_file():
+            warnings.warn(
+                "Skipping SMPL-X OBJ texture because texture file is missing: "
+                f"{texture_path}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            texture_file = None
 
     lines = list()
     lines.append(f"mtllib {filename}.mtl")
@@ -441,7 +479,7 @@ def save_smplx_mesh(
         lines.append(
             f"v {vertices[i, 0]:.6f} {vertices[i, 1]:.6f} {vertices[i, 2]:.6f}"
         )
-    temp_lines = read_lines(template_path)
+    temp_lines = read_lines(str(template_path))
     with open(filepath, "w") as fh:
         for line in lines + temp_lines:
             fh.write(line + "\n")
@@ -454,13 +492,14 @@ def save_smplx_mesh(
     lines += f"Ni {Ni} {Ni} {Ni}\n"
     lines += f"d {d}\n"
     lines += f"illum {illum}\n"
-    if valid_str(texture_path):
-        lines += f"map_Kd {Path(texture_path).name}\n"
+    if texture_file is not None:
+        lines += f"map_Kd {texture_file.name}\n"
     with open(osp.join(root_dir, f"{filename}.mtl"), "w") as fh:
         fh.write(lines)
 
-    if valid_str(texture_path):
-        shutil.copy(texture_path, osp.join(root_dir, Path(texture_path).name))
+    if texture_file is not None:
+        shutil.copy(str(texture_file), osp.join(root_dir, texture_file.name))
+    return True
 
 
 def generate_skeletion_mesh(points, indices, radius=0.025):
