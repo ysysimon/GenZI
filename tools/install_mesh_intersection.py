@@ -17,6 +17,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MESH_INTERSECTION_URL = "https://github.com/vchoutas/torch-mesh-isect.git"
 DEFAULT_REV = "85b30177821a1527e3fe62fcf8ce65262d7c1879"
 DEFAULT_TARGET = REPO_ROOT / "external" / "torch-mesh-isect"
+COMPAT_PATCH = (
+    REPO_ROOT / "tools" / "patches" / "torch-mesh-isect-windows-torch2-cu117.patch"
+)
 HELPER_MATH_HEADER = "helper_math.h"
 
 
@@ -58,6 +61,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="安装时向 uv pip install 传递 --force-reinstall。",
     )
+    parser.add_argument(
+        "--no-compat-patch",
+        action="store_true",
+        help="跳过 GenZI 内置的 torch-mesh-isect Windows/PyTorch2/CUDA 11.7 兼容补丁。",
+    )
     return parser.parse_args(argv)
 
 
@@ -75,6 +83,17 @@ def run(
         env=dict(env) if env is not None else None,
         check=True,
     )
+
+
+def command_succeeds(cmd: list[str], cwd: Path | None = None) -> bool:
+    result = subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd is not None else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    return result.returncode == 0
 
 
 def uv_command() -> str:
@@ -180,6 +199,33 @@ def ensure_checkout(target: Path, rev: str) -> None:
     run(["git", "-C", str(target), "checkout", rev])
 
 
+def apply_compat_patch(target: Path) -> None:
+    if not COMPAT_PATCH.is_file():
+        raise RuntimeError(f"未找到兼容补丁: {COMPAT_PATCH}")
+
+    check_cmd = ["git", "-C", str(target), "apply", "--check", str(COMPAT_PATCH)]
+    if not command_succeeds(check_cmd):
+        reverse_check_cmd = [
+            "git",
+            "-C",
+            str(target),
+            "apply",
+            "--reverse",
+            "--check",
+            str(COMPAT_PATCH),
+        ]
+        if not command_succeeds(reverse_check_cmd):
+            raise RuntimeError(
+                "torch-mesh-isect 兼容补丁无法应用。请确认 checkout 是脚本固定的 "
+                "revision，或先清理 target 目录后重试。"
+            )
+        print(f"[*] compat patch already applied: {COMPAT_PATCH}")
+        return
+
+    run(["git", "-C", str(target), "apply", str(COMPAT_PATCH)])
+    print(f"[*] compat patch applied: {COMPAT_PATCH}")
+
+
 def install_mesh_intersection(
     target: Path,
     cuda_samples_inc: Path,
@@ -196,6 +242,7 @@ def install_mesh_intersection(
         "--python",
         sys.executable,
         "--no-build-isolation",
+        "--no-deps",
     ]
     if force_reinstall:
         cmd.append("--force-reinstall")
@@ -243,6 +290,10 @@ def main(argv: list[str] | None = None) -> int:
             check_msvc_compiler()
 
         ensure_checkout(target, args.rev)
+        if args.no_compat_patch:
+            print("[*] --no-compat-patch 已启用，跳过 GenZI 兼容补丁。")
+        else:
+            apply_compat_patch(target)
         if args.skip_install:
             print("[*] --skip-install 已启用，跳过 CUDA extension 构建安装。")
         else:

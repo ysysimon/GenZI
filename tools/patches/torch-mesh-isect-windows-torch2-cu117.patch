@@ -1,0 +1,214 @@
+diff --git a/setup.py b/setup.py
+index 0f4f387..0ae9545 100644
+--- a/setup.py
++++ b/setup.py
+@@ -57,13 +57,15 @@ else:
+ 
+ bvh_src_files = ['src/bvh.cpp', 'src/bvh_cuda_op.cu']
+ bvh_include_dirs = torch.utils.cpp_extension.include_paths() + [
+-    'include',
++    osp.join(here, 'include'),
+     osp.expandvars('$CUDA_SAMPLES_INC')]
+ 
+-bvh_extra_compile_args = {'nvcc': ['-DPRINT_TIMINGS=0', '-DDEBUG_PRINT=0',
++bvh_extra_compile_args = {'nvcc': ['-allow-unsupported-compiler',
++                                   '-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH',
++                                   '-DPRINT_TIMINGS=0', '-DDEBUG_PRINT=0',
+                                    '-DERROR_CHECKING=1',
+                                    '-DCOLLISION_ORDERING=1'],
+-                          'cxx': []}
++                          'cxx': ['-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH']}
+ bvh_extension = CUDAExtension('bvh_cuda', bvh_src_files,
+                               include_dirs=bvh_include_dirs,
+                               extra_compile_args=bvh_extra_compile_args)
+diff --git a/src/bvh.cpp b/src/bvh.cpp
+index 8cee97c..9a031ed 100644
+--- a/src/bvh.cpp
++++ b/src/bvh.cpp
+@@ -22,8 +22,8 @@
+ void bvh_cuda_forward(at::Tensor triangles, at::Tensor* collision_tensor_ptr,
+         int max_collisions = 16);
+ 
+-#define CHECK_CUDA(x) AT_CHECK(x.type().is_cuda(), #x " must be a CUDA tensor")
+-#define CHECK_CONTIGUOUS(x) AT_CHECK(x.is_contiguous(), #x " must be contiguous")
++#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
++#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
+ #define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
+ 
+ at::Tensor bvh_forward(at::Tensor triangles, int max_collisions = 16) {
+diff --git a/src/bvh_cuda_op.cu b/src/bvh_cuda_op.cu
+index 0a8622a..07d492a 100644
+--- a/src/bvh_cuda_op.cu
++++ b/src/bvh_cuda_op.cu
+@@ -33,6 +33,7 @@
+ #include <iostream>
+ #include <string>
+ #include <type_traits>
++#include <cstdint>
+ 
+ #include "double_vec_ops.h"
+ #include "helper_math.h"
+@@ -125,9 +126,9 @@ __host__ __device__ inline double3 fmax(const double3 &a, const double3 &b) {
+   return make_double3(fmax(a.x, b.x), fmax(a.y, b.y), fmax(a.z, b.z));
+ }
+ 
+-struct is_valid_cnt : public thrust::unary_function<long2, int> {
++struct is_valid_cnt : public thrust::unary_function<longlong2, int> {
+ public:
+-  __host__ __device__ int operator()(long2 vec) const {
++  __host__ __device__ int operator()(longlong2 vec) const {
+     return vec.x >= 0 && vec.y >= 0;
+   }
+ };
+@@ -352,7 +353,7 @@ shareVertex(const Triangle<T> &tri1, const Triangle<T> &tri2) {
+ }
+ 
+ template <typename T>
+-__global__ void checkTriangleIntersections(long2 *collisions,
++__global__ void checkTriangleIntersections(longlong2 *collisions,
+                                            Triangle<T> *triangles,
+                                            int num_cand_collisions,
+                                            int num_triangles) {
+@@ -366,9 +367,9 @@ __global__ void checkTriangleIntersections(long2 *collisions,
+     bool do_collide = TriangleTriangleIsectSepAxis<T>(tri1, tri2) &&
+                       !shareVertex<T>(tri1, tri2);
+     if (do_collide) {
+-      collisions[idx] = make_long2(first_tri_idx, second_tri_idx);
++      collisions[idx] = make_longlong2(first_tri_idx, second_tri_idx);
+     } else {
+-      collisions[idx] = make_long2(-1, -1);
++      collisions[idx] = make_longlong2(-1, -1);
+     }
+   }
+   return;
+@@ -406,7 +407,7 @@ __device__
+ }
+ 
+ template <typename T>
+-__device__ int traverseBVH(long2 *collisionIndices, BVHNodePtr<T> root,
++__device__ int traverseBVH(longlong2 *collisionIndices, BVHNodePtr<T> root,
+                            const AABB<T> &queryAABB, int queryObjectIdx,
+                            BVHNodePtr<T> leaf, int max_collisions,
+                            int *counter) {
+@@ -454,17 +455,17 @@ __device__ int traverseBVH(long2 *collisionIndices, BVHNodePtr<T> root,
+       collisionIndices[coll_idx] =
+           // collisionIndices[num_collisions % max_collisions] =
+           // *collisionIndices++ =
+-          make_long2(min(queryObjectIdx, childL->idx),
+-                     max(queryObjectIdx, childL->idx));
++          make_longlong2(min(queryObjectIdx, childL->idx),
++                         max(queryObjectIdx, childL->idx));
+       num_collisions++;
+     }
+ 
+     if (overlapR && childR->isLeaf()) {
+       int coll_idx = atomicAdd(counter, 1);
+-      collisionIndices[coll_idx] = make_long2(
++      collisionIndices[coll_idx] = make_longlong2(
+           // min(queryObjectIdx, childR->idx),
+           // max(queryObjectIdx, childR->idx));
+-          // collisionIndices[num_collisions % max_collisions] = make_long2(
++          // collisionIndices[num_collisions % max_collisions] = make_longlong2(
+           min(queryObjectIdx, childR->idx), max(queryObjectIdx, childR->idx));
+       num_collisions++;
+     }
+@@ -488,7 +489,7 @@ __device__ int traverseBVH(long2 *collisionIndices, BVHNodePtr<T> root,
+ }
+ 
+ template <typename T>
+-__global__ void findPotentialCollisions(long2 *collisionIndices,
++__global__ void findPotentialCollisions(longlong2 *collisionIndices,
+                                         BVHNodePtr<T> root,
+                                         BVHNodePtr<T> leaves, int *triangle_ids,
+                                         int num_primitives,
+@@ -919,8 +920,9 @@ void buildBVH(BVHNodePtr<T> internal_nodes, BVHNodePtr<T> leaf_nodes,
+   return;
+ }
+ 
+-void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+-                      int max_collisions = 16) {
++template <typename scalar_t>
++void bvh_cuda_forward_typed(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
++                            int max_collisions = 16) {
+   const auto batch_size = triangles.size(0);
+   const auto num_triangles = triangles.size(1);
+ 
+@@ -929,7 +931,7 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+   int blockSize = NUM_THREADS;
+   int gridSize = (num_triangles + blockSize - 1) / blockSize;
+ 
+-  thrust::device_vector<long2> collisionIndices(num_triangles * max_collisions);
++  thrust::device_vector<longlong2> collisionIndices(num_triangles * max_collisions);
+ 
+ #if PRINT_TIMINGS == 1
+   cudaEvent_t start, stop;
+@@ -942,12 +944,9 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+   thrust::fill(collision_idx_cnt.begin(), collision_idx_cnt.end(), 0);
+ 
+   // Construct the bvh tree
+-  AT_DISPATCH_FLOATING_TYPES(
+-      triangles.type(), "bvh_tree_building", ([&] {
+-        thrust::device_vector<BVHNode<scalar_t>> leaf_nodes(num_triangles);
+-        thrust::device_vector<BVHNode<scalar_t>> internal_nodes(num_triangles -
+-                                                                1);
+-        auto triangle_float_ptr = triangles.data<scalar_t>();
++  thrust::device_vector<BVHNode<scalar_t>> leaf_nodes(num_triangles);
++  thrust::device_vector<BVHNode<scalar_t>> internal_nodes(num_triangles - 1);
++  auto triangle_float_ptr = triangles.data_ptr<scalar_t>();
+ 
+         for (int bidx = 0; bidx < batch_size; ++bidx) {
+ 
+@@ -956,7 +955,7 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+               num_triangles * bidx;
+ 
+           thrust::fill(collisionIndices.begin(), collisionIndices.end(),
+-                       make_long2(-1, -1));
++                       make_longlong2(-1, -1));
+ 
+ #if DEBUG_PRINT == 1
+           std::cout << "Start building BVH" << std::endl;
+@@ -1036,8 +1035,8 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+ #endif
+             // Keep only the pairs of ids where a bounding box to bounding box
+             // collision was detected.
+-            thrust::device_vector<long2> collisions(num_cand_collisions,
+-                                                    make_long2(-1, -1));
++            thrust::device_vector<longlong2> collisions(num_cand_collisions,
++                                                        make_longlong2(-1, -1));
+             thrust::copy_if(collisionIndices.begin(), collisionIndices.end(),
+                             collisions.begin(), is_valid_cnt());
+ 
+@@ -1091,10 +1090,10 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+ #if PRINT_TIMINGS == 1
+             cudaEventRecord(start);
+ #endif
+-            long *dev_ptr = collision_tensor_ptr->data<long>();
++            int64_t *dev_ptr = collision_tensor_ptr->data_ptr<int64_t>();
+             cudaMemcpy(dev_ptr + bidx * num_triangles * max_collisions * 2,
+-                       (long *)collisions.data().get(),
+-                       2 * collisions.size() * sizeof(long),
++                       (int64_t *)collisions.data().get(),
++                       2 * collisions.size() * sizeof(int64_t),
+                        cudaMemcpyDeviceToDevice);
+             cudaCheckError();
+ 
+@@ -1111,6 +1110,18 @@ void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
+ #endif
+           }
+         }
+-      }));
++}
+ 
++void bvh_cuda_forward(at::Tensor triangles, at::Tensor *collision_tensor_ptr,
++                      int max_collisions = 16) {
++  switch (triangles.scalar_type()) {
++  case at::ScalarType::Float:
++    bvh_cuda_forward_typed<float>(triangles, collision_tensor_ptr, max_collisions);
++    break;
++  case at::ScalarType::Double:
++    bvh_cuda_forward_typed<double>(triangles, collision_tensor_ptr, max_collisions);
++    break;
++  default:
++    AT_ERROR("bvh_cuda_forward expects a floating point tensor");
++  }
+ }
