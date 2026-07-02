@@ -36,6 +36,7 @@ from genzi.misc import (
     do_step,
     generate_skeletion_mesh,
     get_rotation_matrix,
+    get_scene_usd_options,
     get_time,
     get_tqdm,
     join_texts,
@@ -856,6 +857,7 @@ class GenZI(object):
             mesh_path=scene_cfg["scene.mesh_path"],
             sdf_path=scene_cfg["scene.sdf_path"],
             subd_mesh_path=scene_cfg["scene.subd_mesh_path"],
+            usd_options=get_scene_usd_options(scene_cfg),
         )
 
     def run_scenes(self):

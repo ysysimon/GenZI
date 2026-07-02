@@ -16,6 +16,7 @@ class UsdMeshLoadOptions:
     time_code: Optional[float] = None
     include_invisible: bool = False
     purpose: str = "default"
+    prim_path: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -70,7 +71,7 @@ def load_usd_mesh_with_metadata(
     skipped_purpose_count = 0
     skipped_empty_count = 0
 
-    for prim in stage.Traverse():
+    for prim in _iter_prims(stage, options, Usd):
         if not prim.IsA(UsdGeom.Mesh):
             continue
 
@@ -96,7 +97,16 @@ def load_usd_mesh_with_metadata(
         mesh_count += 1
 
     if not all_vertices or not all_faces:
-        raise RuntimeError("No usable UsdGeom.Mesh prims found in USD stage: {}".format(path))
+        scope = (
+            " under prim path {}".format(options.prim_path)
+            if _has_prim_path(options)
+            else ""
+        )
+        raise RuntimeError(
+            "No usable UsdGeom.Mesh prims found in USD stage{}: {}".format(
+                scope, path
+            )
+        )
 
     vertices = np.concatenate(all_vertices, axis=0)
     faces = np.concatenate(all_faces, axis=0)
@@ -139,6 +149,27 @@ def _validate_options(options: UsdMeshLoadOptions) -> None:
                 sorted(PURPOSES), options.purpose
             )
         )
+    if _has_prim_path(options) and not str(options.prim_path).startswith("/"):
+        raise RuntimeError(
+            "USD prim path must be an absolute prim path starting with '/'. Got: {}".format(
+                options.prim_path
+            )
+        )
+
+
+def _has_prim_path(options: UsdMeshLoadOptions) -> bool:
+    return options.prim_path is not None and str(options.prim_path).strip() != ""
+
+
+def _iter_prims(stage: Any, options: UsdMeshLoadOptions, Usd: Any) -> Any:
+    if not _has_prim_path(options):
+        return stage.Traverse()
+
+    prim_path = str(options.prim_path).strip()
+    root_prim = stage.GetPrimAtPath(prim_path)
+    if not root_prim.IsValid():
+        raise RuntimeError("USD prim path not found in stage: {}".format(prim_path))
+    return Usd.PrimRange(root_prim)
 
 
 def _is_invisible(imageable: Any, time_code: Any, UsdGeom: Any) -> bool:

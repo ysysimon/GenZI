@@ -372,11 +372,22 @@ def to_o3d_pcd(V, VN=None, VC=None):
     return p
 
 
-def load_trimesh(filepath, force=None):
+def get_scene_usd_options(scene_cfg):
+    from genzi.usd_io import UsdMeshLoadOptions
+
+    return UsdMeshLoadOptions(
+        time_code=scene_cfg.get("scene.usd_time_code", None),
+        include_invisible=bool(scene_cfg.get("scene.usd_include_invisible", False)),
+        purpose=scene_cfg.get("scene.usd_purpose", "default") or "default",
+        prim_path=scene_cfg.get("scene.usd_prim_path", None) or None,
+    )
+
+
+def load_trimesh(filepath, force=None, usd_options=None):
     if Path(str(filepath)).suffix.lower() in {".usd", ".usda", ".usdc"}:
         from genzi.usd_io import load_usd_mesh
 
-        return load_usd_mesh(str(filepath))
+        return load_usd_mesh(str(filepath), options=usd_options)
     return trimesh.load(filepath, force=force, process=False, validate=False)
 
 

@@ -20,6 +20,11 @@ def parse_args(argv=None):
     parser.add_argument("--out", required=True, help="Output mesh path, for example scene.obj.")
     parser.add_argument("--time-code", type=float, default=None, help="USD time code to sample.")
     parser.add_argument(
+        "--prim-path",
+        default=None,
+        help="USD prim path root to load. If omitted, traverses the full stage.",
+    )
+    parser.add_argument(
         "--include-invisible",
         action="store_true",
         help="Include invisible UsdGeom.Mesh prims.",
@@ -70,6 +75,7 @@ def main(argv=None):
         time_code=args.time_code,
         include_invisible=args.include_invisible,
         purpose=args.purpose,
+        prim_path=args.prim_path,
     )
     result = load_usd_mesh_with_metadata(args.usd, options=options)
 

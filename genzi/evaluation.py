@@ -18,6 +18,7 @@ from genzi.io import (
 )
 from genzi.misc import (
     get_time,
+    get_scene_usd_options,
     join_texts,
     load_optim_human_mesh,
     load_trimesh,
@@ -122,7 +123,10 @@ def main(cfg):
         physical_funcs[scene_name] = PhysicalMetric(
             sdf_path=scene_cfg["scene.sdf_path"]
         )
-        scene_meshes[scene_name] = load_trimesh(scene_cfg["scene.mesh_path"])
+        scene_meshes[scene_name] = load_trimesh(
+            scene_cfg["scene.mesh_path"],
+            usd_options=get_scene_usd_options(scene_cfg),
+        )
         scene_render_args[scene_name] = {
             "bg_color": scene_cfg["render.bg_color"],
             "ambient_light": scene_cfg["render.ambient_light"],

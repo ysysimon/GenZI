@@ -203,6 +203,148 @@ class TestUsdIo(unittest.TestCase):
             self.assertEqual(len(all_mesh.faces), 3)
 
     @require_pxr
+    def test_prim_path_filters_parent_subtree(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usd_path = Path(tmpdir) / "subtree.usda"
+            save_stage(
+                usd_path,
+                [
+                    {
+                        "path": "/World/Keep/TriangleA",
+                        "points": [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                    {
+                        "path": "/World/Keep/TriangleB",
+                        "points": [(2, 0, 0), (3, 0, 0), (2, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                    {
+                        "path": "/World/Skip/TriangleC",
+                        "points": [(10, 0, 0), (11, 0, 0), (10, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                ],
+            )
+
+            all_mesh = load_usd_mesh(str(usd_path))
+            keep_mesh = load_usd_mesh(
+                str(usd_path), options=UsdMeshLoadOptions(prim_path="/World/Keep")
+            )
+
+            self.assertEqual(len(all_mesh.faces), 3)
+            self.assertEqual(len(keep_mesh.faces), 2)
+            np.testing.assert_allclose(keep_mesh.bounds[0], [0, 0, 0])
+            np.testing.assert_allclose(keep_mesh.bounds[1], [3, 1, 0])
+
+    @require_pxr
+    def test_prim_path_can_point_to_mesh_prim(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usd_path = Path(tmpdir) / "mesh_root.usda"
+            save_stage(
+                usd_path,
+                [
+                    {
+                        "path": "/World/Keep/TriangleA",
+                        "points": [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                    {
+                        "path": "/World/Keep/TriangleB",
+                        "points": [(2, 0, 0), (3, 0, 0), (2, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                ],
+            )
+
+            mesh = load_usd_mesh(
+                str(usd_path),
+                options=UsdMeshLoadOptions(prim_path="/World/Keep/TriangleB"),
+            )
+
+            self.assertEqual(len(mesh.faces), 1)
+            np.testing.assert_allclose(mesh.bounds[0], [2, 0, 0])
+            np.testing.assert_allclose(mesh.bounds[1], [3, 1, 0])
+
+    @require_pxr
+    def test_missing_prim_path_raises_clear_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usd_path = Path(tmpdir) / "missing_prim.usda"
+            save_stage(
+                usd_path,
+                [
+                    {
+                        "path": "/World/Triangle",
+                        "points": [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    }
+                ],
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "USD prim path not found"):
+                load_usd_mesh(
+                    str(usd_path),
+                    options=UsdMeshLoadOptions(prim_path="/World/Missing"),
+                )
+
+    @require_pxr
+    def test_prim_path_combines_with_visibility_and_purpose_filters(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usd_path = Path(tmpdir) / "subtree_filters.usda"
+            save_stage(
+                usd_path,
+                [
+                    {
+                        "path": "/World/Keep/Default",
+                        "points": [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                    {
+                        "path": "/World/Keep/Render",
+                        "points": [(2, 0, 0), (3, 0, 0), (2, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                        "purpose": UsdGeom.Tokens.render,
+                    },
+                    {
+                        "path": "/World/Keep/Hidden",
+                        "points": [(4, 0, 0), (5, 0, 0), (4, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                        "invisible": True,
+                    },
+                    {
+                        "path": "/World/Skip/Default",
+                        "points": [(10, 0, 0), (11, 0, 0), (10, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                ],
+            )
+
+            default_mesh = load_usd_mesh(
+                str(usd_path), options=UsdMeshLoadOptions(prim_path="/World/Keep")
+            )
+            render_mesh = load_usd_mesh(
+                str(usd_path),
+                options=UsdMeshLoadOptions(
+                    prim_path="/World/Keep",
+                    purpose="render",
+                    include_invisible=True,
+                ),
+            )
+
+            self.assertEqual(len(default_mesh.faces), 1)
+            self.assertEqual(len(render_mesh.faces), 3)
+
+    @require_pxr
     def test_cli_exports_obj_readable_by_trimesh(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp_path = Path(tmpdir)
@@ -212,8 +354,14 @@ class TestUsdIo(unittest.TestCase):
                 usd_path,
                 [
                     {
-                        "path": "/Triangle",
+                        "path": "/World/Keep/Triangle",
                         "points": [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                    {
+                        "path": "/World/Skip/Triangle",
+                        "points": [(10, 0, 0), (11, 0, 0), (10, 1, 0)],
                         "counts": [3],
                         "indices": [0, 1, 2],
                     }
@@ -229,6 +377,8 @@ class TestUsdIo(unittest.TestCase):
                     str(usd_path),
                     "--out",
                     str(out_path),
+                    "--prim-path",
+                    "/World/Keep",
                     "--print-summary",
                 ],
                 cwd=Path(__file__).resolve().parents[1],
@@ -242,6 +392,8 @@ class TestUsdIo(unittest.TestCase):
 
             converted = trimesh.load(str(out_path), process=False, validate=False)
             self.assertEqual(len(converted.faces), 1)
+            np.testing.assert_allclose(converted.bounds[0], [0, 0, 0])
+            np.testing.assert_allclose(converted.bounds[1], [1, 1, 0])
 
     @require_pxr
     def test_preview_cli_exports_png(self):
@@ -253,8 +405,14 @@ class TestUsdIo(unittest.TestCase):
                 usd_path,
                 [
                     {
-                        "path": "/Triangle",
+                        "path": "/World/Keep/Triangle",
                         "points": [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                    {
+                        "path": "/World/Skip/Triangle",
+                        "points": [(10, 0, 0), (11, 0, 0), (10, 1, 0)],
                         "counts": [3],
                         "indices": [0, 1, 2],
                     }
@@ -270,6 +428,8 @@ class TestUsdIo(unittest.TestCase):
                     str(usd_path),
                     "--out",
                     str(out_path),
+                    "--prim-path",
+                    "/World/Keep",
                     "--max-faces",
                     "100",
                     "--sample-by",
@@ -293,8 +453,14 @@ class TestUsdIo(unittest.TestCase):
                 usd_path,
                 [
                     {
-                        "path": "/Triangle",
+                        "path": "/World/Keep/Triangle",
                         "points": [(0, 0, 0), (1, 0, 0), (0, 1, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    },
+                    {
+                        "path": "/World/Skip/Triangle",
+                        "points": [(10, 0, 0), (11, 0, 0), (10, 1, 0)],
                         "counts": [3],
                         "indices": [0, 1, 2],
                     }
@@ -304,10 +470,32 @@ class TestUsdIo(unittest.TestCase):
             sys.modules.setdefault("open3d", types.ModuleType("open3d"))
             from genzi.misc import load_trimesh
 
-            mesh = load_trimesh(str(usd_path))
+            mesh = load_trimesh(
+                str(usd_path),
+                usd_options=UsdMeshLoadOptions(prim_path="/World/Keep"),
+            )
 
             self.assertEqual(len(mesh.vertices), 3)
             self.assertEqual(len(mesh.faces), 1)
+            np.testing.assert_allclose(mesh.bounds[0], [0, 0, 0])
+            np.testing.assert_allclose(mesh.bounds[1], [1, 1, 0])
+
+    def test_scene_config_builds_usd_options(self):
+        from genzi.misc import get_scene_usd_options
+
+        options = get_scene_usd_options(
+            {
+                "scene.usd_prim_path": "/World/Room/ChairArea",
+                "scene.usd_purpose": "all",
+                "scene.usd_include_invisible": True,
+                "scene.usd_time_code": 12.0,
+            }
+        )
+
+        self.assertEqual(options.prim_path, "/World/Room/ChairArea")
+        self.assertEqual(options.purpose, "all")
+        self.assertTrue(options.include_invisible)
+        self.assertEqual(options.time_code, 12.0)
 
 
 if __name__ == "__main__":

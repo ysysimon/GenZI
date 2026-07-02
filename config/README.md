@@ -79,6 +79,8 @@ GenZI 用同一套 generation / evaluation 管线处理不同来源的 3D 场景
 
 具体光照、背景、材质、相机朝向等 render 参数不在顶层 generation 配置内，而是在每个 scene config 中读取，例如 `render.bg_color`、`render.up_dir`、`render.shadows`。
 
+USD scene config 可以直接把 `scene.mesh_path` 指向 `.usd`、`.usda` 或 `.usdc`。默认会遍历整个 USD stage 中 visible 且 `purpose=default` 的 `UsdGeom.Mesh` prim；如只想读取某个 subtree，可设置 `scene.usd_prim_path`，例如 `/World/Room/ChairArea`。可选字段还包括 `scene.usd_purpose`（`default` / `render` / `proxy` / `all`）、`scene.usd_include_invisible` 和 `scene.usd_time_code`。这些字段只影响 USD mesh 读取；非 USD mesh 会忽略。
+
 ### `vlm`
 
 | 字段 | 当前值 | 作用 |
