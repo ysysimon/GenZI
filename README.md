@@ -66,6 +66,8 @@ Extract the content of the zipped file to the root directory of the code.
 bash run.sh
 ```
 
+For USD scene IO, mesh conversion, and preview usage, see [docs/usd-io.md](docs/usd-io.md).
+
 ## References
 1. [Diffusers](https://github.com/huggingface/diffusers) by Hugging Face.
 1. Fang et al. [AlphaPose: Whole-Body Regional Multi-Person Pose Estimation and Tracking in Real-Time](https://github.com/MVIG-SJTU/AlphaPose).

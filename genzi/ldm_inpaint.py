@@ -1109,10 +1109,22 @@ class StableDiffusionInpaintPipeline(
 
 
 def get_ldm_inpaint(ldm_inpaint_path, device):
+    from_pretrained_args = {
+        "requires_safety_checker": False,
+        "safety_checker": None,
+        "feature_extractor": None,
+        "torch_dtype": torch.float16,
+    }
+    ldm_inpaint_dir = Path(str(ldm_inpaint_path))
+    if ldm_inpaint_dir.exists():
+        from_pretrained_args["local_files_only"] = True
+        if (ldm_inpaint_dir / "unet" / "diffusion_pytorch_model.fp16.safetensors").is_file():
+            from_pretrained_args["use_safetensors"] = True
+            from_pretrained_args["variant"] = "fp16"
+
     ldm_inpaint = StableDiffusionInpaintPipeline.from_pretrained(
         ldm_inpaint_path,
-        requires_safety_checker=False,
-        torch_dtype=torch.float16,
+        **from_pretrained_args,
     )
     ldm_inpaint.scheduler = DPMSolverMultistepScheduler.from_config(
         ldm_inpaint.scheduler.config

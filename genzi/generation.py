@@ -77,7 +77,38 @@ def _load_body_model_deps():
         purpose="从本地 VPoser checkpoint 目录加载模型。",
         install_hint=install_hint,
     )
+    _patch_vposer_model_loader(loader_module)
     return smplx_module, vposer_module.VPoser, loader_module.load_model
+
+
+def _patch_vposer_model_loader(loader_module):
+    def exprdir2model(expr_dir, model_cfg_override=None):
+        expr_path = Path(expr_dir)
+        if not expr_path.exists():
+            raise ValueError(f"Could not find the experiment directory: {expr_dir}")
+
+        snapshots_dir = expr_path / "snapshots"
+        available_ckpts = sorted(
+            snapshots_dir.glob("*.ckpt"), key=lambda path: path.stat().st_mtime
+        )
+        if len(available_ckpts) == 0:
+            raise ValueError(f"No checkpoint found at {snapshots_dir}")
+
+        model_cfg_files = sorted(expr_path.glob("*.yaml"))
+        if len(model_cfg_files) == 0:
+            raise ValueError(f"No VPoser yaml config found at {expr_path}")
+
+        model_cfg = OmegaConf.load(str(model_cfg_files[0]))
+        if model_cfg_override:
+            override_cfg_dotlist = [
+                f"{key}={value}" for key, value in model_cfg_override.items()
+            ]
+            override_cfg = OmegaConf.from_dotlist(override_cfg_dotlist)
+            model_cfg = OmegaConf.merge(model_cfg, override_cfg)
+
+        return model_cfg, str(available_ckpts[-1])
+
+    loader_module.exprdir2model = exprdir2model
 
 
 class GenZI(object):
@@ -101,14 +132,19 @@ class GenZI(object):
 
         print("[*] Using log dir", cfg["log_dir"])
 
-        wandb.init(
-            project=cfg["project"],
-            dir=wandb_dir,
-            group=cfg["group"],
-            notes=cfg["notes"],
-            tags=cfg["tags"],
-            settings=wandb.Settings(start_method="fork"),
-        )
+        wandb_start_method = "spawn" if os.name == "nt" else "fork"
+        wandb_kwargs = {
+            "project": cfg["project"],
+            "dir": wandb_dir,
+            "group": cfg["group"],
+            "notes": cfg["notes"],
+            "tags": cfg["tags"],
+            "settings": wandb.Settings(start_method=wandb_start_method),
+        }
+        wandb_mode = cfg.get("wandb.mode", None)
+        if valid_str(wandb_mode):
+            wandb_kwargs["mode"] = wandb_mode
+        wandb.init(**wandb_kwargs)
         wandb.config.update(cfg)
 
         write_yaml(

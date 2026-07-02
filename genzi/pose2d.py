@@ -97,6 +97,24 @@ def _load_alphapose_deps():
     )
     return _ALPHAPOSE_DEPS
 
+
+def _resolve_alphapose_path(alphapose_dir, value):
+    if value is None or value == "":
+        return value
+    return value if osp.isabs(value) else osp.join(alphapose_dir, value)
+
+
+def _patch_detector_paths(detector, alphapose_dir):
+    for attr in ("model_cfg", "model_weights"):
+        if hasattr(detector, attr):
+            setattr(detector, attr, _resolve_alphapose_path(alphapose_dir, getattr(detector, attr)))
+
+    detector_cfg = getattr(detector, "detector_cfg", None)
+    if detector_cfg is not None:
+        for key in ("CONFIG", "WEIGHTS", "MODEL_WEIGHTS"):
+            if key in detector_cfg:
+                detector_cfg[key] = _resolve_alphapose_path(alphapose_dir, detector_cfg[key])
+
 smplx_alphapose_corrs = np.asarray(
     [
         [0, 19],
@@ -184,9 +202,9 @@ class Pose2DPipeline(object):
         self.args = args
         self.cfg = cfg
 
-        self.det_loader = DetectionLoader(
-            self.deps.get_detector(args), cfg, args, self.deps
-        )
+        detector = self.deps.get_detector(args)
+        _patch_detector_paths(detector, self.deps.alphapose_dir)
+        self.det_loader = DetectionLoader(detector, cfg, args, self.deps)
 
         pose_model = self.deps.builder.build_sppe(
             cfg.MODEL, preset_cfg=cfg.DATA_PRESET

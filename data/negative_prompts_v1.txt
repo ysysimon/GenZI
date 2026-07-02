@@ -1,0 +1,19 @@
+low quality
+low resolution
+blurry
+distorted
+deformed body
+bad anatomy
+bad hands
+missing limbs
+extra limbs
+extra fingers
+mutated hands
+poorly drawn face
+poorly drawn hands
+duplicate person
+multiple people
+text
+watermark
+logo
+cropped body
