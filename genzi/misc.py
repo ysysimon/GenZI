@@ -372,14 +372,43 @@ def to_o3d_pcd(V, VN=None, VC=None):
     return p
 
 
-def get_scene_usd_options(scene_cfg):
+def _get_cfg_value(scene_cfg, key, default=None):
+    return scene_cfg.get(key, default)
+
+
+def _has_cfg_key(scene_cfg, key):
+    return key in scene_cfg
+
+
+def get_scene_usd_options(scene_cfg, prefix="scene.usd", fallback_prefix=None):
     from genzi.usd_io import UsdMeshLoadOptions
 
+    def value(name, default=None):
+        key = f"{prefix}_{name}"
+        if _has_cfg_key(scene_cfg, key):
+            return _get_cfg_value(scene_cfg, key, default)
+        if fallback_prefix is not None and name not in {
+            "preserve_materials",
+            "texture_mode",
+            "rotation_degrees",
+        }:
+            fallback_key = f"{fallback_prefix}_{name}"
+            if _has_cfg_key(scene_cfg, fallback_key):
+                return _get_cfg_value(scene_cfg, fallback_key, default)
+        return default
+
+    rotation_degrees = value("rotation_degrees", None)
+    if rotation_degrees is not None:
+        rotation_degrees = tuple(float(v) for v in rotation_degrees)
+
     return UsdMeshLoadOptions(
-        time_code=scene_cfg.get("scene.usd_time_code", None),
-        include_invisible=bool(scene_cfg.get("scene.usd_include_invisible", False)),
-        purpose=scene_cfg.get("scene.usd_purpose", "default") or "default",
-        prim_path=scene_cfg.get("scene.usd_prim_path", None) or None,
+        time_code=value("time_code", None),
+        include_invisible=bool(value("include_invisible", False)),
+        purpose=value("purpose", "default") or "default",
+        prim_path=value("prim_path", None) or None,
+        preserve_materials=bool(value("preserve_materials", False)),
+        texture_mode=value("texture_mode", "diffuse") or "diffuse",
+        rotation_degrees=rotation_degrees,
     )
 
 

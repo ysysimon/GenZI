@@ -691,6 +691,7 @@ class GenZI(object):
             self.renderer.save_current_state()
             self.renderer.set_cameras(eyes=sviewpoints, at=slook_at, up=up_dir, fov=fov)
             used_views = list(range(self.renderer.num_cameras()))
+            original_used_views = used_views[:]
 
             simages, _, _ = self.renderer.render(
                 tri_meshes=[self.scene3d.get_trimesh()],
@@ -698,21 +699,39 @@ class GenZI(object):
                 **render_args,
             )
             assert simages.ndim == 4
+            view_rgb_stds = simages.reshape((simages.shape[0], -1, 3)).std(axis=(1, 2))
+            view_min_rgb_std = float(cfg.get("data.view_min_rgb_std", 0.0))
+            if view_min_rgb_std > 0:
+                keep_indices = np.nonzero(view_rgb_stds >= view_min_rgb_std)[0]
+                min_views = min(
+                    int(cfg["loss.inpaint_min_views"]),
+                    len(used_views),
+                )
+                if len(keep_indices) < min_views:
+                    keep_indices = np.argsort(view_rgb_stds)[::-1][:min_views]
+                keep_indices = np.sort(keep_indices)
+                simages = simages[keep_indices]
+                used_views = [used_views[idx] for idx in keep_indices.tolist()]
             simage_paths = list()
-            may_create_folder(osp.join(log_dir, sp_dir, f"views_stage{stage_idx:03d}"))
+            view_dir = osp.join(log_dir, sp_dir, f"views_stage{stage_idx:03d}")
+            may_create_folder(view_dir)
+            with open(osp.join(view_dir, "view_quality.csv"), "w") as fh:
+                fh.write("view_id,rgb_std,kept\n")
+                kept_view_ids = set(used_views)
+                for idx, score in enumerate(view_rgb_stds.tolist()):
+                    view_id = original_used_views[idx]
+                    fh.write(f"{view_id},{score:.8f},{int(view_id in kept_view_ids)}\n")
             for idx, vidx in enumerate(used_views):
                 simage = Image.fromarray((simages[idx] * 255).astype(np.uint8))
                 simage_path = osp.join(
-                    log_dir,
-                    sp_dir,
-                    f"views_stage{stage_idx:03d}",
+                    view_dir,
                     f"view{vidx:03d}.png",
                 )
                 simage.save(simage_path)
                 simage_paths.append(simage_path)
             np.savez(
-                osp.join(log_dir, sp_dir, f"views_stage{stage_idx:03d}", "views.npz"),
-                viewpoints=sviewpoints,
+                osp.join(view_dir, "views.npz"),
+                viewpoints=sviewpoints[used_views, :],
                 look_at=slook_at,
             )
 
@@ -893,7 +912,12 @@ class GenZI(object):
             mesh_path=scene_cfg["scene.mesh_path"],
             sdf_path=scene_cfg["scene.sdf_path"],
             subd_mesh_path=scene_cfg["scene.subd_mesh_path"],
-            usd_options=get_scene_usd_options(scene_cfg),
+            mesh_usd_options=get_scene_usd_options(scene_cfg),
+            subd_usd_options=get_scene_usd_options(
+                scene_cfg,
+                prefix="scene.subd_usd",
+                fallback_prefix="scene.usd",
+            ),
         )
 
     def run_scenes(self):

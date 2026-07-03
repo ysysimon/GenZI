@@ -9,7 +9,7 @@
 ```text
 data/
   my_usd_scenes/
-    my_room.usd
+    my_room.usdc
     my_room_proxy.usd
     my_room.json
     my_room_sdf.npy
@@ -20,7 +20,7 @@ config/
 
 其中：
 
-- `my_room.usd` 是你导出的 USD 场景。
+- `my_room.usdc` 是你导出的原始 USD 场景；`.usd` 或 `.usdc` 都可以，保持 USD 格式即可。
 - `my_room_proxy.usd` 是可选的轻量视角采样几何。大场景建议准备，仍然使用 USD 格式。
 - `my_room.json` 和 `my_room_sdf.npy` 是场景 SDF。当前 `Scene` 初始化一定会读取 SDF，因此不是可选项。
 - `my_room_v1.yml` 是单个 scene config。
@@ -48,6 +48,7 @@ data:
   cfg_suffix: "_v1.yml"
   max_views: 16
   num_viewpoints: 256
+  view_min_rgb_std: 0.05
   view_distances:
     - 2.0
     - 2.0
@@ -66,6 +67,7 @@ data:
 | `data.cfg_suffix` | scene config 后缀。例如 `my_room` + `_v1.yml` = `my_room_v1.yml`。 |
 | `data.max_views` | 每次 interaction 最多保留多少个有效视角。 |
 | `data.num_viewpoints` | 自动采样候选视角数量。 |
+| `data.view_min_rgb_std` | 直接渲染 view 的 RGB 标准差下限。可过滤纯墙面、纯灰面等低信息视角；`0.0` 表示关闭过滤。 |
 | `data.view_distances` | 各 stage 的相机到交互点距离。长度要和 `optim.steps` 的 stage 数一致。 |
 | `data.patch_radius` | 交互点附近 patch 搜索半径，用于估计局部可见区域和法线。 |
 | `data.use_at_normal` | 是否用交互点附近法线约束候选视角。 |
@@ -77,18 +79,29 @@ data:
 
 ```yaml
 scene:
-  mesh_path: "./data/my_usd_scenes/my_room.usd"
+  mesh_path: "./data/my_usd_scenes/my_room.usdc"
   sdf_path: "./data/my_usd_scenes/my_room.json"
   subd_mesh_path: "./data/my_usd_scenes/my_room_proxy.usd"
 
-  usd_prim_path: null
-  usd_purpose: render
+  usd_prim_path: /World
+  usd_purpose: default
   usd_include_invisible: false
   usd_time_code: null
+  usd_preserve_materials: true
+  usd_texture_mode: diffuse
+  usd_rotation_degrees: [-90.0, 0.0, 0.0]
+
+  subd_usd_prim_path: null
+  subd_usd_purpose: default
+  subd_usd_include_invisible: false
+  subd_usd_time_code: null
+  subd_usd_preserve_materials: false
+  subd_usd_texture_mode: none
+  subd_usd_rotation_degrees: null
 
 render:
   bg_color: [0.5, 0.5, 0.5, 0.0]
-  ambient_light: [0.25, 0.25, 0.25]
+  ambient_light: [0.45, 0.45, 0.45]
   dir_light_color: [1.0, 1.0, 1.0]
   dir_light_intensity: 3.0
   pt_light_color: [1.0, 1.0, 1.0]
@@ -99,7 +112,7 @@ render:
   all_solid: false
   cull_faces: false
   shadows: false
-  up_dir: [0.0, 0.0, 1.0]
+  up_dir: [0.0, 1.0, 0.0]
 
 prompt_prefix: ""
 prompt_suffix: ""
@@ -128,7 +141,7 @@ viewpoints:
 
 | 字段 | 必填 | 含义 |
 | --- | --- | --- |
-| `scene.mesh_path` | 是 | 主场景 mesh。你的导出文件通常写 `.usd`。最终 scene render、depth 遮挡和 human-scene compositing 都会用它。 |
+| `scene.mesh_path` | 是 | 主场景 mesh。可以是 `.usd` 或 `.usdc`。最终 scene render、depth 遮挡和 human-scene compositing 都会用它。 |
 | `scene.sdf_path` | 是 | 场景 SDF 路径。可以写 `.json` 或 `_sdf.npy`，但对应的两个文件都需要存在。 |
 | `scene.subd_mesh_path` | 是 | 视角采样用 mesh。写空字符串时直接使用 `scene.mesh_path`。大 USD 场景建议指向轻量 `.usd` proxy，并保留墙、天花板、地面和主要遮挡物。 |
 
@@ -139,23 +152,34 @@ SDF 命名规则：
 
 ## 5. USD 读取字段
 
-这些字段用于读取 `.usd` 场景；本文档里的自定义场景流程默认都按 `.usd` 编写。
+这些字段用于读取 `.usd` / `.usdc` 场景；本文档里的自定义场景流程保持 USD 格式，不需要转成其他 mesh 格式。
 
 | 字段 | 推荐值 | 含义 |
 | --- | --- | --- |
-| `scene.usd_prim_path` | `null` | 只读取某个 absolute prim path 下的 subtree。例如 `/World/Room`。`null` 表示读取整个 stage。 |
-| `scene.usd_purpose` | `render` | USD purpose 过滤。可选 `default`、`render`、`proxy`、`all`。如果读不到 mesh，先改成 `all` 排查。 |
+| `scene.usd_prim_path` | 视场景而定 | 只读取某个 absolute prim path 下的 subtree。例如 `/World` 或 `/World/Room`。`null` 表示读取整个 stage。 |
+| `scene.usd_purpose` | `default` | USD purpose 过滤。可选 `default`、`render`、`proxy`、`all`。如果读不到 mesh，先改成 `all` 排查。 |
 | `scene.usd_include_invisible` | `false` | 是否读取 invisible mesh prim。 |
 | `scene.usd_time_code` | `null` | 动画 USD 的采样 time code。静态场景写 `null`。 |
+| `scene.usd_preserve_materials` | `true` | 主场景渲染时是否保留 USD material 分组。要读取 diffuse texture 给 `pyrender`，设为 `true`。 |
+| `scene.usd_texture_mode` | `diffuse` | 当前支持读取 diffuse/basecolor/albedo 类贴图，并按 Lambert-ish 方式给 `pyrender` 使用。设为 `none` 时不读贴图。 |
+| `scene.usd_rotation_degrees` | 视场景而定 | 额外 XYZ 欧拉旋转，单位 degree。原始 USD 如果不是 GenZI 期望的 y-up，可以设 `[-90.0, 0.0, 0.0]`。 |
 
-注意：当前 USD loader 会合并 `UsdGeom.Mesh` prim，但不会保留 USD material、texture、UV、normal、instance、variant composition 等高层信息。
+`scene.subd_usd_*` 是 `subd_mesh_path` 的 USD 读取参数。建议 proxy 使用：
+
+```yaml
+subd_usd_preserve_materials: false
+subd_usd_texture_mode: none
+subd_usd_rotation_degrees: null
+```
+
+注意：默认 `usd_preserve_materials: false` 时 loader 仍会合并 `UsdGeom.Mesh` prim，适合 proxy 或纯几何用途。设置 `usd_preserve_materials: true` 时，会按 material/GeomSubset 拆分成 `trimesh.Scene`，并尽量读取 `UsdPreviewSurface.diffuseColor -> UsdUVTexture` 对应的贴图；当前不会完整还原 USD 的复杂 shader network、normal map、roughness map、instance 或 variant composition。
 
 ## 6. Render 字段建议
 
 室内场景推荐先使用：
 
 ```yaml
-ambient_light: [0.25, 0.25, 0.25]
+ambient_light: [0.45, 0.45, 0.45]
 dir_light_intensity: 3.0
 pt_light_intensity: 1.0
 shadows: false
@@ -177,7 +201,7 @@ shadows: false
 | `render.all_solid` | 是否强制 solid 渲染。一般设为 `false`。 |
 | `render.cull_faces` | 是否剔除背面。室内场景通常设为 `false`。 |
 | `render.shadows` | 是否开启 shadow render flags。室内场景如果担心墙和天花板挡光，设为 `false`。 |
-| `render.up_dir` | 世界坐标上方向。Z-up 用 `[0.0, 0.0, 1.0]`，Y-up 用 `[0.0, 1.0, 0.0]`。 |
+| `render.up_dir` | 渲染和视角采样使用的世界上方向。把原始 Z-up USD 用 `usd_rotation_degrees: [-90.0, 0.0, 0.0]` 转成 Y-up 后，用 `[0.0, 1.0, 0.0]`。 |
 
 ## 7. Prompt 与 Interaction 字段
 
@@ -229,9 +253,9 @@ viewpoints:
 
 ```powershell
 uv run python tools\preview_mesh_scene.py `
-  --mesh data\my_usd_scenes\my_room.usd `
+  --mesh data\my_usd_scenes\my_room.usdc `
   --out data\my_usd_scenes\my_room_preview.png `
-  --purpose render `
+  --purpose default `
   --style solid-wire
 ```
 
@@ -239,7 +263,7 @@ uv run python tools\preview_mesh_scene.py `
 
 ```powershell
 uv run python tools\preview_mesh_scene.py `
-  --mesh data\my_usd_scenes\my_room.usd `
+  --mesh data\my_usd_scenes\my_room.usdc `
   --out data\my_usd_scenes\my_room_debug_all.png `
   --purpose all `
   --include-invisible `
@@ -250,10 +274,10 @@ uv run python tools\preview_mesh_scene.py `
 
 ```powershell
 uv run python tools\preview_mesh_scene.py `
-  --mesh data\my_usd_scenes\my_room.usd `
+  --mesh data\my_usd_scenes\my_room.usdc `
   --out data\my_usd_scenes\my_room_subtree.png `
   --prim-path /World/Room `
-  --purpose render `
+  --purpose default `
   --style solid-wire
 ```
 
@@ -261,12 +285,16 @@ uv run python tools\preview_mesh_scene.py `
 
 ```powershell
 uv run python tools\build_usd_proxy.py `
-  data\my_usd_scenes\my_room.usd `
+  data\my_usd_scenes\my_room.usdc `
   data\my_usd_scenes\my_room_proxy.usd `
   --voxel-size 0.06 `
   --max-cells 200000 `
-  --purpose default
+  --purpose default `
+  --prim-path /World `
+  --rotation-degrees -90 0 0
 ```
+
+如果原始 USD 已经是正确 up-axis，就不要加 `--rotation-degrees -90 0 0`，并把 scene config 里的 `usd_rotation_degrees` 设为 `null`。
 
 然后在 scene config 里设置：
 
@@ -342,7 +370,7 @@ vlm:
 室内场景先使用：
 
 ```yaml
-ambient_light: [0.25, 0.25, 0.25]
+ambient_light: [0.45, 0.45, 0.45]
 dir_light_intensity: 3.0
 pt_light_intensity: 1.0
 shadows: false

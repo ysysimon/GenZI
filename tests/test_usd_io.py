@@ -12,11 +12,13 @@ import numpy as np
 from genzi.usd_io import UsdMeshLoadOptions, load_usd_mesh
 
 try:
-    from pxr import Gf, Usd, UsdGeom
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 except ImportError:
     Gf = None
+    Sdf = None
     Usd = None
     UsdGeom = None
+    UsdShade = None
 
 
 def require_pxr(func):
@@ -43,6 +45,55 @@ def save_stage(path, mesh_specs):
         if spec.get("purpose") is not None:
             imageable.CreatePurposeAttr().Set(spec["purpose"])
 
+    stage.GetRootLayer().Save()
+
+
+def save_textured_stage(path, texture_path):
+    stage = Usd.Stage.CreateNew(str(path))
+    mesh = UsdGeom.Mesh.Define(stage, "/World/TexturedQuad")
+    mesh.CreatePointsAttr(
+        [
+            Gf.Vec3f(0, 0, 0),
+            Gf.Vec3f(1, 0, 0),
+            Gf.Vec3f(1, 1, 0),
+            Gf.Vec3f(0, 1, 0),
+        ]
+    )
+    mesh.CreateFaceVertexCountsAttr([3, 3])
+    mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 0, 2, 3])
+    st = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+        "st",
+        Sdf.ValueTypeNames.TexCoord2fArray,
+        UsdGeom.Tokens.faceVarying,
+    )
+    st.Set(
+        [
+            Gf.Vec2f(0, 0),
+            Gf.Vec2f(1, 0),
+            Gf.Vec2f(1, 1),
+            Gf.Vec2f(0, 0),
+            Gf.Vec2f(1, 1),
+            Gf.Vec2f(0, 1),
+        ]
+    )
+
+    material = UsdShade.Material.Define(stage, "/World/Materials/TestMaterial")
+    preview = UsdShade.Shader.Define(
+        stage, "/World/Materials/TestMaterial/PreviewSurface"
+    )
+    preview.CreateIdAttr("UsdPreviewSurface")
+    preview.CreateOutput("surface", Sdf.ValueTypeNames.Token)
+    diffuse_input = preview.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f)
+
+    texture = UsdShade.Shader.Define(stage, "/World/Materials/TestMaterial/Diffuse")
+    texture.CreateIdAttr("UsdUVTexture")
+    texture.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(
+        Sdf.AssetPath(str(texture_path))
+    )
+    texture.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+    diffuse_input.ConnectToSource(texture.ConnectableAPI(), "rgb")
+    material.CreateSurfaceOutput().ConnectToSource(preview.ConnectableAPI(), "surface")
+    UsdShade.MaterialBindingAPI(mesh).Bind(material)
     stage.GetRootLayer().Save()
 
 
@@ -128,6 +179,52 @@ class TestUsdIo(unittest.TestCase):
 
             np.testing.assert_allclose(mesh.bounds[0], [1, 2, 3])
             np.testing.assert_allclose(mesh.bounds[1], [2, 3, 3])
+
+    @require_pxr
+    def test_applies_extra_rotation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            usd_path = Path(tmpdir) / "rotated.usda"
+            save_stage(
+                usd_path,
+                [
+                    {
+                        "path": "/Triangle",
+                        "points": [(0, 0, 0), (0, 0, 1), (1, 0, 0)],
+                        "counts": [3],
+                        "indices": [0, 1, 2],
+                    }
+                ],
+            )
+
+            mesh = load_usd_mesh(
+                str(usd_path),
+                options=UsdMeshLoadOptions(rotation_degrees=(-90, 0, 0)),
+            )
+
+            np.testing.assert_allclose(mesh.vertices[1], [0, 1, 0], atol=1e-6)
+
+    @require_pxr
+    def test_preserves_diffuse_texture_as_trimesh_scene(self):
+        from PIL import Image
+        import trimesh
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            texture_path = tmp_path / "albedo.png"
+            Image.new("RGB", (2, 2), color=(255, 0, 0)).save(texture_path)
+            usd_path = tmp_path / "textured.usda"
+            save_textured_stage(usd_path, texture_path)
+
+            scene = load_usd_mesh(
+                str(usd_path),
+                options=UsdMeshLoadOptions(preserve_materials=True),
+            )
+
+            self.assertIsInstance(scene, trimesh.Scene)
+            self.assertEqual(len(scene.geometry), 1)
+            geom = next(iter(scene.geometry.values()))
+            self.assertEqual(geom.visual.kind, "texture")
+            self.assertEqual(geom.visual.uv.shape, (4, 2))
 
     @require_pxr
     def test_skips_invisible_by_default(self):
@@ -489,6 +586,9 @@ class TestUsdIo(unittest.TestCase):
                 "scene.usd_purpose": "all",
                 "scene.usd_include_invisible": True,
                 "scene.usd_time_code": 12.0,
+                "scene.usd_preserve_materials": True,
+                "scene.usd_texture_mode": "diffuse",
+                "scene.usd_rotation_degrees": [-90.0, 0.0, 0.0],
             }
         )
 
@@ -496,6 +596,9 @@ class TestUsdIo(unittest.TestCase):
         self.assertEqual(options.purpose, "all")
         self.assertTrue(options.include_invisible)
         self.assertEqual(options.time_code, 12.0)
+        self.assertTrue(options.preserve_materials)
+        self.assertEqual(options.texture_mode, "diffuse")
+        self.assertEqual(options.rotation_degrees, (-90.0, 0.0, 0.0))
 
 
 if __name__ == "__main__":

@@ -24,6 +24,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--purpose", default="default")
     parser.add_argument("--prim-path", default=None)
     parser.add_argument("--include-invisible", action="store_true")
+    parser.add_argument(
+        "--rotation-degrees",
+        nargs=3,
+        type=float,
+        default=None,
+        metavar=("X", "Y", "Z"),
+        help="Extra XYZ Euler rotation in degrees applied after USD transforms.",
+    )
     parser.add_argument("--seed", type=int, default=0)
     return parser.parse_args()
 
@@ -142,6 +150,9 @@ def main() -> None:
             include_invisible=args.include_invisible,
             purpose=args.purpose,
             prim_path=args.prim_path,
+            rotation_degrees=tuple(args.rotation_degrees)
+            if args.rotation_degrees is not None
+            else None,
         ),
     )
     print(f"loaded mesh vertices={len(mesh.vertices)} faces={len(mesh.faces)}")

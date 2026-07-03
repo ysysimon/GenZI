@@ -30,18 +30,29 @@ from genzi.misc import (
 
 class Scene(object):
 
-    def __init__(self, mesh_path, sdf_path, subd_mesh_path, usd_options=None, **kwargs):
+    def __init__(
+        self,
+        mesh_path,
+        sdf_path,
+        subd_mesh_path,
+        usd_options=None,
+        mesh_usd_options=None,
+        subd_usd_options=None,
+        **kwargs,
+    ):
         self.mesh_path = mesh_path
         self.sdf_path = sdf_path
         self.subd_mesh_path = subd_mesh_path
         self.usd_options = usd_options
+        self.mesh_usd_options = mesh_usd_options or usd_options
+        self.subd_usd_options = subd_usd_options or usd_options
         for k, w in kwargs.items():
             setattr(self, k, w)
 
-        self.mesh = load_trimesh(mesh_path, usd_options=usd_options)
+        self.mesh = load_trimesh(mesh_path, usd_options=self.mesh_usd_options)
         if valid_str(subd_mesh_path):
             self.subd_mesh = load_trimesh(
-                subd_mesh_path, force="mesh", usd_options=usd_options
+                subd_mesh_path, force="mesh", usd_options=self.subd_usd_options
             )
         else:
             self.subd_mesh = self.mesh

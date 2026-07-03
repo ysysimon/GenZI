@@ -73,6 +73,7 @@ data:
   cfg_suffix: ".yml"
   max_views: 8
   num_viewpoints: 128
+  view_min_rgb_std: 0.05
   view_distances:
     - 2.0
     - 2.0
@@ -106,7 +107,7 @@ loss:
   inpaint_min_views: 3
   inpaints_per_view:
     - 4
-    - 2
+    - 1
   inpaint_score_weights:
     - [1, 1, 1, 1, 1]
     - [1, 1, 1, 1, 1]
